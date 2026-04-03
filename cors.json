@@ -1,0 +1,7 @@
+[
+  {
+    "origin": ["http://localhost:5173", "http://localhost:3000", "https://tripplanner-d4df2.web.app", "https://tripplanner-d4df2.firebaseapp.com"],
+    "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
+    "maxAgeSeconds": 3600
+  }
+]

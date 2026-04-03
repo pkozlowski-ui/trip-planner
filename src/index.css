@@ -1,0 +1,13 @@
+/* Carbon Design System base styles are imported from @carbon/styles/css/styles.css */
+
+/* Custom overrides and app-specific styles */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+

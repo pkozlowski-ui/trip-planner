@@ -1,0 +1,222 @@
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/spacing' as *;
+
+.aside {
+  width: 420px;
+  min-width: 360px;
+  background-color: $layer-01;
+  border-left: 1px solid $border-subtle;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.asideCollapsed {
+  width: 64px;
+  background-color: $layer-01;
+  border-left: 1px solid $border-subtle;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: $spacing-05 0 $spacing-05 $spacing-03;
+}
+
+.collapsedButton {
+  background-color: $layer-02;
+  width: 32px;
+  height: 32px;
+}
+
+.header {
+  padding: $spacing-05;
+  border-bottom: 1px solid $border-subtle;
+  display: flex;
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  flex: 1;
+  color: $text-primary;
+}
+
+.messages {
+  flex: 1;
+  padding: $spacing-05;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.messageList {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.messageUser {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.messageAssistant {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.bubbleUser {
+  width: 100%;
+  max-width: 100%;
+  padding: $spacing-04 $spacing-05;
+  border-radius: 0.5rem;
+  background-color: var(--cds-button-primary, #0f62fe);
+  color: #ffffff;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.bubbleAssistant {
+  width: 100%;
+  max-width: 100%;
+  padding: $spacing-04 $spacing-05;
+  border-radius: 0.5rem;
+  background-color: $layer-02;
+  color: $text-primary;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border: 1px solid $border-subtle;
+}
+
+.textBlock {
+  word-break: break-word;
+
+  // Markdown headings
+  :global(h1) { font-size: 1.25rem; font-weight: 600; margin: 0 0 $spacing-03; color: $text-primary; }
+  :global(h2) { font-size: 1.125rem; font-weight: 600; margin: 0 0 $spacing-03; color: $text-primary; }
+  :global(h3) { font-size: 1rem; font-weight: 600; margin: 0 0 $spacing-02; color: $text-primary; }
+
+  // Lists
+  :global(ul),
+  :global(ol) {
+    margin: 0 0 $spacing-03;
+    padding-left: $spacing-06;
+  }
+  :global(li) { margin-bottom: $spacing-02; }
+  :global(li:last-child) { margin-bottom: 0; }
+
+  // Inline
+  :global(strong) { font-weight: 600; }
+  :global(a) { color: var(--cds-link-primary, #0f62fe); text-decoration: underline; }
+  :global(a:hover) { color: var(--cds-link-primary-hover, #0043ce); }
+  :global(p) { margin: 0 0 $spacing-03; }
+  :global(p:last-child) { margin-bottom: 0; }
+
+  // Images (Markdown ![alt](url))
+  :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.25rem;
+    display: block;
+    margin: $spacing-03 0;
+  }
+}
+
+// Topic icons from shortcodes (:diamond: etc.) – inline, scan-friendly
+.topicIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin-right: $spacing-02;
+  color: $text-secondary;
+  flex-shrink: 0;
+}
+
+.toolStatus {
+  font-size: 0.8125rem;
+  color: $text-secondary;
+  font-style: italic;
+}
+
+.unknownComponent {
+  font-size: 0.75rem;
+  color: $text-secondary;
+}
+
+.emptyState {
+  text-align: center;
+  padding: $spacing-09 $spacing-06;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-05;
+}
+
+.emptyIcon {
+  color: $text-placeholder;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: $text-primary;
+}
+
+.emptySubtitle {
+  margin: 0;
+  font-size: 0.75rem;
+  color: $text-secondary;
+}
+
+.streaming {
+  padding: $spacing-03 0;
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  justify-content: flex-start;
+}
+
+.streamingStatus {
+  font-size: 0.8125rem;
+  color: $text-secondary;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.errorWrap {
+  padding: 0 $spacing-05 $spacing-03;
+}
+
+.errorBoundaryFallback {
+  padding: $spacing-05 0;
+}
+
+.inputWrap {
+  padding: $spacing-05;
+  border-top: 1px solid $border-subtle;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.inputRow {
+  display: flex;
+  gap: $spacing-03;
+  align-items: flex-end;
+}
+
+.input {
+  flex: 1;
+}
+
+.waitHint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: $text-secondary;
+}

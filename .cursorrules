@@ -1,0 +1,663 @@
+---
+description: "Trip Planner: Staff-Level UX/UI with Carbon Design System Excellence"
+globs: ["**/*.tsx", "**/*.ts", "src/**", "**/*.scss"]
+alwaysApply: true
+---
+
+# 🏗️ CORE PROJECT CONTEXT & STACK
+
+**Project**: Trip Planner - Multi-day trip planning application with interactive map
+**Framework**: Vite + React 18 + TypeScript
+**Design System**: IBM Carbon Design System v11
+**Styling**: Carbon Components (@carbon/react) + Carbon tokens + SCSS
+**Map**: Leaflet + React Leaflet
+**Backend**: Firebase (Firestore, Authentication)
+**State**: React Context API + Local State
+**Drag & Drop**: @dnd-kit/core
+
+---
+
+# 🎨 CARBON DESIGN SYSTEM MASTERY
+
+## 1️⃣ COMPONENT SELECTION & USAGE
+
+### Always Use Carbon Components First
+✅ **DO**: Use Carbon components from `@carbon/react`
+❌ **DON'T**: Create custom buttons, inputs, modals, or form elements
+
+```typescript
+// ✅ CORRECT
+import { Button, TextInput, Modal, Loading } from '@carbon/react';
+
+// ❌ WRONG
+const CustomButton = () => <button className="my-button">...</button>;
+```
+
+### Carbon Component Catalog
+| Need | Carbon Component | Import |
+|------|------------------|--------|
+| Button | `<Button>` | `@carbon/react` |
+| Text Input | `<TextInput>` | `@carbon/react` |
+| Select Dropdown | `<Select>`, `<SelectItem>` | `@carbon/react` |
+| Modal | `<Modal>` | `@carbon/react` |
+| Notification | `<InlineNotification>`, `<ToastNotification>` | `@carbon/react` |
+| Loading | `<Loading>` | `@carbon/react` |
+| Tabs | `<Tabs>`, `<TabList>`, `<Tab>`, `<TabPanels>`, `<TabPanel>` | `@carbon/react` |
+| Toggle | `<Toggle>` | `@carbon/react` |
+| Checkbox | `<Checkbox>` | `@carbon/react` |
+| Radio | `<RadioButton>`, `<RadioButtonGroup>` | `@carbon/react` |
+| Menu | `<OverflowMenu>`, `<OverflowMenuItem>` | `@carbon/react` |
+| Grid | `<Grid>`, `<Column>` | `@carbon/react` |
+
+---
+
+## 2️⃣ BUTTON STATES & VARIANTS
+
+### Complete Button Implementation
+Every button MUST handle all states:
+
+```typescript
+<Button
+  kind="primary"           // primary | secondary | tertiary | ghost | danger
+  size="md"               // sm | md | lg | xl | 2xl
+  disabled={isSubmitting} // Disabled state
+  renderIcon={Add}        // Optional icon (from @carbon/icons-react)
+  iconDescription="Add"   // Required if renderIcon is used
+  onClick={handleClick}
+>
+  {isSubmitting ? 'Saving...' : 'Save'}
+</Button>
+```
+
+### Button Hierarchy Rules
+1. **Primary**: Main CTA (max 1 per screen section)
+2. **Secondary**: Alternative actions
+3. **Tertiary**: Less important actions
+4. **Ghost**: Minimal visual weight (e.g., "Cancel")
+5. **Danger**: Destructive actions (delete, remove)
+
+---
+
+## 3️⃣ FORM COMPONENTS - COMPLETE STATES
+
+### TextInput - All States
+```typescript
+<TextInput
+  id="location-name"
+  labelText="Location name"          // Always include label
+  placeholder="Enter location name"   // Helpful placeholder
+  value={formData.name}
+  onChange={(e) => handleChange('name', e.target.value)}
+  invalid={!!errors.name}            // Error state
+  invalidText={errors.name}          // Error message
+  disabled={isSubmitting}            // Disabled state
+  helperText="This will appear on the map" // Optional help text
+  required                           // Visual indicator
+/>
+```
+
+### Select - All States
+```typescript
+<Select
+  id="category"
+  labelText="Category"
+  value={formData.category}
+  onChange={(e) => handleChange('category', e.target.value)}
+  invalid={!!errors.category}
+  invalidText={errors.category}
+  disabled={isSubmitting}
+  helperText="Choose the type of location"
+>
+  <SelectItem value="" text="Choose category" />
+  {CATEGORIES.map((cat) => (
+    <SelectItem key={cat.value} value={cat.value} text={cat.label} />
+  ))}
+</Select>
+```
+
+### Form Group Pattern
+```typescript
+<FormGroup legendText="Basic Information">
+  <Stack gap={5}>
+    <TextInput {...props} />
+    <Select {...props} />
+  </Stack>
+</FormGroup>
+```
+
+---
+
+## 4️⃣ MODAL PATTERNS
+
+### Complete Modal Implementation
+```typescript
+<Modal
+  open={isOpen}
+  onRequestClose={handleClose}
+  modalHeading="Add Location"
+  modalLabel="Trip Planning"              // Optional category label
+  primaryButtonText={isEditing ? "Update" : "Add"}
+  secondaryButtonText="Cancel"
+  primaryButtonDisabled={isSubmitting || !isValid}
+  onRequestSubmit={handleSubmit}
+  preventCloseOnClickOutside={hasUnsavedChanges}
+  size="md"                              // xs | sm | md | lg
+>
+  {isSubmitting && (
+    <Loading description="Saving..." withOverlay={false} />
+  )}
+  <Stack gap={6}>
+    {/* Form content */}
+  </Stack>
+</Modal>
+```
+
+### Modal UX Rules
+1. **Always provide** both primary and secondary actions
+2. **Disable primary button** when form is invalid or submitting
+3. **Show loading state** during async operations
+4. **Prevent close** if there are unsaved changes (with confirmation)
+5. **Focus management**: First input gets focus on open
+6. **Escape key**: Should close modal (unless prevented)
+
+---
+
+## 5️⃣ LOADING STATES
+
+### Never Show Text-Only Loading
+❌ **WRONG**: `<p>Loading...</p>`
+✅ **CORRECT**: Use Carbon Loading component
+
+```typescript
+// Full-page loading
+<div style={{ 
+  height: '100%', 
+  display: 'flex', 
+  alignItems: 'center', 
+  justifyContent: 'center' 
+}}>
+  <Loading description="Loading trip plan..." withOverlay={false} />
+</div>
+
+// Inline loading (small)
+<Loading description="Loading..." withOverlay={false} small />
+
+// Button loading state
+<Button disabled={isLoading}>
+  {isLoading ? 'Saving...' : 'Save'}
+</Button>
+```
+
+---
+
+## 6️⃣ NOTIFICATION PATTERNS
+
+### InlineNotification - For Contextual Feedback
+```typescript
+<InlineNotification
+  kind="error"              // error | warning | info | success
+  title="Error"
+  subtitle={error}
+  onClose={() => setError(null)}  // Always dismissible
+  lowContrast={false}       // Use high contrast for errors
+  hideCloseButton={false}   // Allow dismissal
+/>
+```
+
+### ToastNotification - For Global Feedback
+```typescript
+<ToastNotification
+  kind="success"
+  title="Location added"
+  subtitle="Your location has been saved to Day 1"
+  timeout={3000}            // Auto-dismiss after 3s
+  onClose={() => {}}
+/>
+```
+
+### Notification Hierarchy
+1. **Error**: Always high contrast, dismissible, stays until dismissed
+2. **Warning**: Medium priority, auto-dismiss after 5s
+3. **Success**: Low priority, auto-dismiss after 3s
+4. **Info**: Contextual, auto-dismiss after 4s
+
+---
+
+## 7️⃣ SPACING & LAYOUT TOKENS
+
+### Carbon Spacing Scale
+Use Carbon spacing tokens instead of arbitrary values:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `$spacing-02` | 0.25rem (4px) | Minimal spacing |
+| `$spacing-03` | 0.5rem (8px) | Tight spacing |
+| `$spacing-04` | 0.75rem (12px) | Default inline spacing |
+| `$spacing-05` | 1rem (16px) | Standard spacing |
+| `$spacing-06` | 1.5rem (24px) | Section spacing |
+| `$spacing-07` | 2rem (32px) | Large spacing |
+| `$spacing-09` | 3rem (48px) | XL spacing |
+
+```typescript
+// ✅ CORRECT - Using Carbon tokens
+<div style={{ padding: '1rem', gap: '1rem' }}>  // $spacing-05
+
+// ❌ WRONG - Arbitrary values
+<div style={{ padding: '13px', gap: '17px' }}>
+```
+
+### Stack Component Pattern
+```typescript
+import { Stack } from '@carbon/react';
+
+<Stack gap={5}>  {/* gap uses spacing scale: 5 = $spacing-05 */}
+  <TextInput {...props} />
+  <Select {...props} />
+</Stack>
+```
+
+---
+
+## 8️⃣ COLOR TOKENS
+
+### Always Use Carbon Color Tokens
+```scss
+// ✅ CORRECT - Carbon tokens
+.sidebar {
+  background-color: $layer-01;
+  border-right: 1px solid $border-subtle;
+  color: $text-primary;
+}
+
+// ❌ WRONG - Hardcoded colors
+.sidebar {
+  background-color: #ffffff;
+  border-right: 1px solid #e0e0e0;
+  color: #161616;
+}
+```
+
+### Common Color Tokens
+| Token | Purpose |
+|-------|---------|
+| `$layer-01` | Primary background |
+| `$layer-02` | Secondary background (cards) |
+| `$layer-accent-01` | Accent background |
+| `$text-primary` | Primary text |
+| `$text-secondary` | Secondary text |
+| `$text-placeholder` | Placeholder text |
+| `$border-subtle` | Subtle borders |
+| `$border-strong` | Prominent borders |
+| `$interactive-01` | Primary interactive color |
+| `$interactive-02` | Secondary interactive color |
+| `$danger` | Error/destructive actions |
+
+---
+
+# 🎯 STAFF-LEVEL UX/UI PRINCIPLES
+
+## 1️⃣ VISUAL HIERARCHY
+
+### Information Architecture
+1. **Primary Actions**: High visual weight (primary buttons, large text)
+2. **Secondary Actions**: Medium weight (secondary buttons, body text)
+3. **Tertiary Actions**: Low weight (ghost buttons, caption text)
+
+### Typography Scale
+```typescript
+// Page Title
+<h1 style={{ fontSize: '2rem', fontWeight: 600 }}>Trip Planner</h1>
+
+// Section Heading
+<h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Day 1</h2>
+
+// Subsection
+<h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Locations</h3>
+
+// Body
+<p style={{ fontSize: '1rem', lineHeight: 1.5 }}>Description text</p>
+
+// Caption
+<span style={{ fontSize: '0.875rem', color: '$text-secondary' }}>Helper text</span>
+```
+
+---
+
+## 2️⃣ INTERACTION DESIGN
+
+### Micro-interactions Checklist
+- [ ] **Hover states**: All interactive elements have visible hover
+- [ ] **Active states**: Click/tap feedback
+- [ ] **Focus states**: Keyboard navigation visible (focus rings)
+- [ ] **Disabled states**: Visually distinct, cursor not-allowed
+- [ ] **Loading states**: Clear feedback during async operations
+- [ ] **Error states**: Clear, actionable error messages
+- [ ] **Empty states**: Helpful guidance when no data
+
+### Transition Standards
+```scss
+// Standard transition
+transition: all 200ms cubic-bezier(0.2, 0, 0.38, 0.9); // Carbon motion
+
+// Hover effect
+.card {
+  transition: transform 200ms, box-shadow 200ms;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+}
+```
+
+---
+
+## 3️⃣ FEEDBACK & COMMUNICATION
+
+### Every Action Needs Feedback
+| Action | Feedback |
+|--------|----------|
+| Create | Success notification + UI update |
+| Update | Success notification + UI update |
+| Delete | Confirmation modal → Success notification |
+| Error | Error notification with retry action |
+| Loading | Loading spinner/skeleton |
+| Empty state | Helpful message with CTA |
+
+### Error Message Quality
+❌ **BAD**: "Error occurred"
+✅ **GOOD**: "Unable to save location. Please check your connection and try again."
+
+```typescript
+// Error handling pattern
+try {
+  await createLocation(data);
+  showNotification('success', 'Location added successfully');
+} catch (error) {
+  showNotification(
+    'error',
+    'Unable to add location',
+    error.message || 'Please check your connection and try again'
+  );
+}
+```
+
+---
+
+## 4️⃣ ACCESSIBILITY (A11Y) REQUIREMENTS
+
+### Non-Negotiable A11Y Rules
+1. ✅ **All images have alt text** (or empty alt="" if decorative)
+2. ✅ **All form inputs have labels** (visible or aria-label)
+3. ✅ **Color is not the only indicator** (use icons + text)
+4. ✅ **Keyboard navigation works** (tab, enter, escape)
+5. ✅ **Focus is visible** (focus rings on interactive elements)
+6. ✅ **ARIA labels for icon buttons**
+7. ✅ **Semantic HTML** (button for actions, a for links)
+
+```typescript
+// ✅ CORRECT - Accessible icon button
+<Button
+  kind="ghost"
+  renderIcon={Edit}
+  iconDescription="Edit location"
+  hasIconOnly
+  onClick={handleEdit}
+/>
+
+// ❌ WRONG - Not accessible
+<div onClick={handleEdit}>
+  <Edit />
+</div>
+```
+
+---
+
+## 5️⃣ RESPONSIVE DESIGN
+
+### Mobile-First Approach
+1. Design for mobile first (320px+)
+2. Add complexity for tablet (768px+)
+3. Optimize for desktop (1024px+)
+
+### Breakpoint Strategy
+```scss
+// Mobile (default)
+.sidebar {
+  width: 100%;
+  position: fixed;
+  bottom: 0;
+}
+
+// Tablet
+@media (min-width: 768px) {
+  .sidebar {
+    width: 320px;
+    position: relative;
+  }
+}
+
+// Desktop
+@media (min-width: 1024px) {
+  .sidebar {
+    width: 360px;
+  }
+}
+```
+
+---
+
+## 6️⃣ PERFORMANCE & OPTIMIZATION
+
+### Performance Checklist
+- [ ] **Lazy load** heavy components (map, modals)
+- [ ] **Debounce** search inputs (300ms)
+- [ ] **Throttle** scroll handlers
+- [ ] **Memoize** expensive calculations (useMemo)
+- [ ] **Optimize images** (WebP, lazy loading)
+- [ ] **Code splitting** (React.lazy + Suspense)
+
+```typescript
+// Debounced search
+const debouncedSearch = useMemo(
+  () => debounce((value: string) => {
+    performSearch(value);
+  }, 300),
+  []
+);
+```
+
+---
+
+# 🔥 FIREBASE PATTERNS
+
+## Security First
+```typescript
+// ✅ ALWAYS check authentication
+if (!user) {
+  throw new Error('User must be authenticated');
+}
+
+// ✅ ALWAYS set userId
+await createTripPlan({
+  ...data,
+  userId: user.uid,  // Critical!
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+});
+```
+
+## Optimistic Updates
+```typescript
+// 1. Update UI immediately
+setLocations(prev => [...prev, newLocation]);
+
+// 2. Update Firestore
+try {
+  await createLocation(planId, dayId, newLocation);
+} catch (error) {
+  // 3. Rollback on error
+  setLocations(prev => prev.filter(l => l.id !== newLocation.id));
+  showError(error);
+}
+```
+
+---
+
+# 🗺️ MAP-SPECIFIC PATTERNS
+
+## Leaflet + Carbon Integration
+```typescript
+// Custom marker with Carbon colors
+const customIcon = L.divIcon({
+  html: `<div style="color: ${dayColor}">
+    ${renderToString(<LocationPin />)}
+  </div>`,
+  className: 'custom-marker',
+  iconSize: [32, 32],
+});
+```
+
+## Map Performance
+- **Cluster markers** when > 50 locations
+- **Debounce zoom** events
+- **Lazy load** route polylines
+- **Memoize** marker positions
+
+---
+
+# 📋 COMPONENT CHECKLIST
+
+## Before Committing Any Component
+
+### TypeScript
+- [ ] No `any` types (use proper interfaces)
+- [ ] All props have types
+- [ ] Return type is explicit or inferred correctly
+- [ ] Exported interfaces for reusable components
+
+### Carbon Compliance
+- [ ] Using Carbon components (not custom HTML)
+- [ ] Using Carbon spacing tokens
+- [ ] Using Carbon color tokens
+- [ ] Icons from `@carbon/icons-react`
+
+### States
+- [ ] Loading state implemented
+- [ ] Error state implemented
+- [ ] Empty state implemented
+- [ ] Disabled state implemented
+- [ ] Hover state styled
+- [ ] Focus state visible
+
+### Accessibility
+- [ ] Keyboard navigation works
+- [ ] Focus management correct
+- [ ] ARIA labels on icon buttons
+- [ ] Semantic HTML used
+- [ ] Color contrast meets WCAG AA
+
+### UX Polish
+- [ ] Smooth transitions (200ms)
+- [ ] Feedback for every action
+- [ ] Clear error messages
+- [ ] Helpful empty states
+- [ ] Consistent spacing
+
+### Performance
+- [ ] No unnecessary re-renders
+- [ ] Expensive operations memoized
+- [ ] Event handlers debounced/throttled
+- [ ] Images optimized
+
+---
+
+# 🚫 ANTI-PATTERNS (Never Do This)
+
+## 1. Don't Mix Design Systems
+❌ **WRONG**: Using Tailwind classes in Carbon project
+```typescript
+<Button className="px-4 py-2 bg-blue-500">  // NO!
+```
+
+## 2. Don't Create Custom Basic Components
+❌ **WRONG**: Custom button when Carbon has one
+```typescript
+const MyButton = () => <button>...</button>  // NO!
+```
+
+## 3. Don't Hardcode Colors
+❌ **WRONG**: Using hex colors
+```scss
+color: #161616;  // NO!
+```
+✅ **CORRECT**: Using tokens
+```scss
+color: $text-primary;  // YES!
+```
+
+## 4. Don't Skip Loading States
+❌ **WRONG**: No feedback during async operations
+```typescript
+onClick={async () => {
+  await saveData();  // User sees nothing happening
+}}
+```
+
+## 5. Don't Ignore Errors Silently
+❌ **WRONG**: Swallowing errors
+```typescript
+try {
+  await saveData();
+} catch (error) {
+  // silence is not golden
+}
+```
+
+## 6. Don't Use Inline Styles for Everything
+❌ **WRONG**: Complex inline styles
+```typescript
+<div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }}>
+```
+✅ **CORRECT**: Use SCSS modules or Carbon components
+```typescript
+<Stack gap={6} className="container">
+```
+
+---
+
+# 🎯 DEFINITION OF DONE
+
+A feature is DONE when:
+- [ ] ✅ Uses Carbon Design System components
+- [ ] ✅ All interactive states implemented (hover, focus, active, disabled)
+- [ ] ✅ All async states implemented (loading, error, success, empty)
+- [ ] ✅ TypeScript types defined (no `any`)
+- [ ] ✅ Accessible (keyboard nav, ARIA labels, focus management)
+- [ ] ✅ Responsive (mobile, tablet, desktop)
+- [ ] ✅ Loading feedback with Carbon `<Loading>`
+- [ ] ✅ Error handling with `<InlineNotification>`
+- [ ] ✅ Firebase operations include auth checks
+- [ ] ✅ No console errors or warnings
+- [ ] ✅ Smooth transitions (200ms Carbon motion)
+- [ ] ✅ Performance optimized (memoization, debouncing)
+- [ ] ✅ Empty states with helpful guidance
+- [ ] ✅ Success feedback for user actions
+- [ ] ✅ Code is documented (complex logic explained)
+
+---
+
+# 🏆 EXCELLENCE MINDSET
+
+> "Every component is an opportunity to delight the user."
+
+1. **Sweat the details**: 2px can make a difference
+2. **Anticipate needs**: Empty states guide next actions
+3. **Communicate clearly**: Users should never wonder "what's happening?"
+4. **Be consistent**: Same action, same pattern, everywhere
+5. **Performance matters**: Every 100ms counts
+6. **Accessibility is not optional**: Everyone deserves great UX
+
+---
+
+*Last updated: January 2026 - Carbon Design System v11*
