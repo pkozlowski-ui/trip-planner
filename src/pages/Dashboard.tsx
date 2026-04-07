@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTripPlans } from '../contexts/TripPlansContext';
 import AppLayout from '../components/layout/AppLayout';
 import { TripPlan } from '../types';
-import { Add, ArrowRight, Logout } from '@carbon/icons-react';
+import { Add, ArrowRight } from '@carbon/icons-react';
 import {
   getTripPlan,
   refreshPlanCover,
@@ -188,7 +188,7 @@ function DashboardGrid({
 }
 
 function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { plans, loading, loadPlans, error } = useTripPlans();
   const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState<DashboardTabId>('all');
@@ -472,24 +472,6 @@ function Dashboard() {
             onPlanClick={(plan) => navigate(`/plan/${plan.id}`)}
           />
 
-          <div className="dashboard-footer">
-            <Button
-              kind="ghost"
-              size="sm"
-              renderIcon={Logout}
-              iconDescription="Sign out"
-              onClick={async () => {
-                try {
-                  await signOut();
-                  navigate('/login');
-                } catch (e) {
-                  console.error('Sign out error:', e);
-                }
-              }}
-            >
-              Sign out
-            </Button>
-          </div>
         </div>
 
         {/* Wizard panel */}
