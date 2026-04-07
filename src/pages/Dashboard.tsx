@@ -494,7 +494,7 @@ function Dashboard() {
 
         {/* Wizard panel */}
         <div className="dashboard-wizard-panel">
-          <DashboardWizard onQuickMode={() => setIsQuickModeOpen(true)} />
+          <DashboardWizard />
         </div>
       </div>
     </AppLayout>

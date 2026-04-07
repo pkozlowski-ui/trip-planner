@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import { Button, Loading } from '@carbon/react';
-import { Send, Flash, Checkmark } from '@carbon/icons-react';
+import { Send, Checkmark } from '@carbon/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -37,9 +37,7 @@ interface WizardAnswers {
   anchor: string;
 }
 
-interface DashboardWizardProps {
-  onQuickMode: () => void;
-}
+type DashboardWizardProps = Record<string, never>;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -191,7 +189,7 @@ function buildPlanDescription(answers: WizardAnswers): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-function DashboardWizard({ onQuickMode }: DashboardWizardProps) {
+function DashboardWizard(_props: DashboardWizardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -622,15 +620,6 @@ function DashboardWizard({ onQuickMode }: DashboardWizardProps) {
       {/* Header */}
       <div className="wizard-header">
         <span className="wizard-header__title">Trip Planner AI</span>
-        <button
-          className="wizard-header__quick-mode"
-          onClick={onQuickMode}
-          type="button"
-          title="Open quick plan creation form"
-        >
-          <Flash size={14} />
-          Quick mode
-        </button>
       </div>
 
       {/* Message thread */}
