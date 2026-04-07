@@ -161,6 +161,33 @@ function getCommonsImageUrl(filename: string): string {
 }
 
 /**
+ * Wikipedia page image (lead image) — fallback when Wikidata P18 is missing.
+ * Returns the original Commons URL for the article's main photo.
+ */
+async function getWikipediaPageImage(
+  pageTitle: string,
+  lang: string,
+  signal?: AbortSignal
+): Promise<string | undefined> {
+  const origin = `https://${lang}.wikipedia.org`;
+  const url = `${origin}/w/api.php?${new URLSearchParams({
+    action: 'query',
+    prop: 'pageimages',
+    titles: pageTitle.replace(/ /g, '_'),
+    format: 'json',
+    pithumbsize: '1200',
+    piprop: 'original',
+    origin: '*',
+  })}`;
+  const data = await fetchJson<{
+    query?: { pages?: Record<string, { original?: { source?: string } }> };
+  }>(url, signal);
+  const pages = data.query?.pages;
+  if (!pages) return undefined;
+  return Object.values(pages)[0]?.original?.source;
+}
+
+/**
  * Commons API: imageinfo for license/author
  */
 async function getCommonsImageInfo(
@@ -273,6 +300,25 @@ export async function enrichLocationFromWikidata(
           sourceUrl: result.image,
           license: 'See source',
         };
+      }
+    }
+
+    // Fallback: if Wikidata P18 is missing but the entity has a Wikipedia page,
+    // try the article's lead image (pageimages API). Many notable places lack P18
+    // in Wikidata even though their Wikipedia articles have great photos.
+    if (!result.image && entity.wikipediaTitle && entity.wikipediaLang) {
+      try {
+        const pageImageUrl = await getWikipediaPageImage(
+          entity.wikipediaTitle,
+          entity.wikipediaLang,
+          signal
+        );
+        if (pageImageUrl) {
+          result.image = pageImageUrl;
+          result.imageAttribution = { sourceUrl: pageImageUrl, license: 'Wikimedia Commons' };
+        }
+      } catch {
+        // not critical – keep going without an image
       }
     }
 
