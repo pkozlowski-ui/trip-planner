@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth, signOutUser } from '../services/firebase/auth';
+import { User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { auth } from '../services/firebase/config';
 
 interface AuthContextType {
   user: User | null;
@@ -15,23 +15,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen for auth state changes
-    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
-      setUser(user);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        setLoading(false);
+      } else {
+        // No session — sign in anonymously so Firestore rules are satisfied
+        try {
+          await signInAnonymously(auth);
+          // onAuthStateChanged fires again with the new anonymous user
+        } catch (error) {
+          console.error('Anonymous sign-in failed:', error);
+          setLoading(false);
+        }
+      }
     });
-
     return () => unsubscribe();
   }, []);
 
   const handleSignOut = async () => {
-    try {
-      await signOutUser();
-      setUser(null);
-    } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
-    }
+    // No-op in demo mode
   };
 
   return (

@@ -17,7 +17,6 @@ import {
   Star,
   View,
 } from '@carbon/icons-react';
-import { useAuth } from '../../contexts/AuthContext';
 import { useTripPlans } from '../../contexts/TripPlansContext';
 import { searchLocations, GeocodingResult, SearchViewbox } from '../../services/geocoding';
 import { searchByCategory, convertToGeocodingResult, POICategory } from '../../services/overpass';
@@ -93,7 +92,6 @@ interface HeaderProps {
 function Header({ onLocationSelect, onAddLocationFromSearch, onPlanEdit, onChatToggle, isChatOpen, mapBounds }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signOut } = useAuth();
   const { currentPlan } = useTripPlans();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
@@ -149,15 +147,6 @@ function Header({ onLocationSelect, onAddLocationFromSearch, onPlanEdit, onChatT
     setSearchHistory(getSearchHistory());
   }, []);
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
-
   const handleBack = () => {
     if (location.pathname.includes('/plan/')) {
       navigate('/dashboard');
@@ -173,9 +162,6 @@ function Header({ onLocationSelect, onAddLocationFromSearch, onPlanEdit, onChatT
       skipEffectSearchRef.current = false;
       return;
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'Header.tsx:searchEffect:entry',message:'Search effect run',data:{searchQuery,trimLen:searchQuery.trim().length},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // Cancel previous request if exists
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -199,24 +185,15 @@ function Header({ onLocationSelect, onAddLocationFromSearch, onPlanEdit, onChatT
     const signal = abortControllerRef.current.signal;
 
     searchTimeoutRef.current = setTimeout(async () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'Header.tsx:searchEffect:beforeApi',message:'Calling searchLocations',data:{query:searchQuery},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       try {
         // Pass mapBounds to prioritize local results
         const results = await searchLocations(searchQuery, signal, mapBounds);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'Header.tsx:searchEffect:afterApi',message:'Search API returned',data:{resultsLength:results?.length??0,aborted:!!signal?.aborted},hypothesisId:'H2',hypothesisId2:'H3',timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         // Only update if request wasn't cancelled
         if (!signal.aborted) {
           setSearchResults(results);
           setShowResults(true);
         }
       } catch (error: any) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'Header.tsx:searchEffect:catch',message:'Search API error',data:{errorName:error?.name,errorMessage:error?.message},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (error.name !== 'AbortError') {
           console.error('Search error:', error);
           setSearchResults([]);
@@ -289,20 +266,8 @@ function Header({ onLocationSelect, onAddLocationFromSearch, onPlanEdit, onChatT
     };
   }, [showResults]);
 
-  // Log when we have results but panel visibility might be blocked (H1)
-  useEffect(() => {
-    if (searchResults.length > 0) {
-      const showPanel = (showResults || isSearching) && !showDropdown;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'Header.tsx:resultsVisibility',message:'Results visibility state',data:{searchResultsLength:searchResults.length,showResults,showDropdown,isSearching,showPanel},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-    }
-  }, [searchResults.length, showResults, showDropdown, isSearching]);
 
   const handleSearchSelect = (result: GeocodingResult) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'Header.tsx:handleSearchSelect',message:'User selected result',data:{hasOnLocationSelect:!!onLocationSelect,displayName:result?.display_name?.slice(0,40)},hypothesisId:'H4',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // Save to history
     const queryToSave = result.namedetails?.name || result.display_name.split(',')[0];
     addToSearchHistory(queryToSave);
@@ -688,15 +653,6 @@ function Header({ onLocationSelect, onAddLocationFromSearch, onPlanEdit, onChatT
             size="md"
             onClick={onChatToggle}
           />
-        )}
-        {!isPlanEditor && (
-          <Button
-            kind="secondary"
-            size="sm"
-            onClick={handleSignOut}
-          >
-            Sign out
-          </Button>
         )}
       </div>
     </header>

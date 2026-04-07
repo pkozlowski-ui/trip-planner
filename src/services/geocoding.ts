@@ -90,9 +90,6 @@ export async function searchLocations(
   }
 
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'geocoding.ts:searchLocations:beforeFetch',message:'Before Nominatim fetch',data:{query:query.trim()},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // Use Nominatim API with optimized parameters
     // In dev we use Vite proxy (same-origin) to avoid CORS/preflight; in production we call Nominatim directly (may require a backend proxy if CORS blocks).
     const baseUrl = import.meta.env.DEV ? '/api/nominatim' : 'https://nominatim.openstreetmap.org';
@@ -116,9 +113,6 @@ export async function searchLocations(
     }
 
     const data = await response.json();
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'geocoding.ts:searchLocations:afterFetch',message:'Nominatim response',data:{count:Array.isArray(data)?data.length:-1,ok:response.ok},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!Array.isArray(data)) {
       console.warn('Nominatim returned non-array:', typeof data);
       return [];
@@ -154,9 +148,6 @@ export async function searchLocations(
 
     return results;
   } catch (error: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'geocoding.ts:searchLocations:catch',message:'Geocoding error',data:{errorName:error?.name,errorMessage:error?.message},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (error.name === 'AbortError') {
       return [];
     }

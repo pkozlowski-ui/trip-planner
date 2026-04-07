@@ -99,8 +99,14 @@ function TransportFormModal({
             ))}
           </Select>
 
-          <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#f4f4f4', borderRadius: '4px' }}>
-            <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>
+          <div style={{
+            marginTop: '1rem',
+            padding: '0.75rem',
+            backgroundColor: 'var(--cds-layer-02, #f4f4f4)',
+            border: '1px solid var(--cds-border-subtle, #e0e0e0)',
+            borderRadius: '4px',
+          }}>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--cds-text-secondary, #525252)' }}>
               Distance and time will be calculated automatically based on the selected locations.
             </p>
           </div>
@@ -117,7 +123,7 @@ function TransportFormModal({
         </FormGroup>
 
         {isSubmitting && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--cds-spacing-05, 1rem)' }}>
             <Loading description={isEditMode ? 'Updating transport...' : 'Adding transport...'} withOverlay={false} small />
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { SkeletonPlaceholder } from '@carbon/react';
 import { hasLoaded, markLoaded } from '../../utils/imageLoadCache';
 
@@ -29,22 +29,11 @@ export function ImageWithPlaceholder({
   objectFit = 'cover',
 }: ImageWithPlaceholderProps) {
   const [error, setError] = useState(false);
-  const [initialLoaded] = useState(() => hasLoaded(src));
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  const skeletonRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!src?.trim()) return;
-    if (initialLoaded) {
-      imgRef.current?.classList.add(IMAGE_LOADED_CLASS);
-      if (skeletonRef.current) skeletonRef.current.style.display = 'none';
-    }
-  }, [src, initialLoaded]);
+  const [isLoaded, setIsLoaded] = useState(() => hasLoaded(src));
 
   const handleLoad = () => {
     markLoaded(src);
-    imgRef.current?.classList.add(IMAGE_LOADED_CLASS);
-    if (skeletonRef.current) skeletonRef.current.style.display = 'none';
+    setIsLoaded(true);
   };
 
   const handleError = () => setError(true);
@@ -63,9 +52,8 @@ export function ImageWithPlaceholder({
 
   return (
     <div className={className} style={containerStyle}>
-      {!initialLoaded && (
+      {!isLoaded && (
         <div
-          ref={skeletonRef}
           style={{
             position: 'absolute',
             inset: 0,
@@ -86,7 +74,6 @@ export function ImageWithPlaceholder({
         </div>
       )}
       <img
-        ref={imgRef}
         src={src}
         alt={alt}
         loading={loading}
@@ -98,10 +85,10 @@ export function ImageWithPlaceholder({
           height: height ?? '100%',
           objectFit,
           display: 'block',
-          opacity: initialLoaded ? 1 : 0,
+          opacity: isLoaded ? 1 : 0,
           transition: 'opacity 0.2s cubic-bezier(0.2, 0, 0.38, 0.9)',
         }}
-        className={initialLoaded ? IMAGE_LOADED_CLASS : undefined}
+        className={isLoaded ? IMAGE_LOADED_CLASS : undefined}
       />
     </div>
   );

@@ -52,6 +52,8 @@ function preprocessMarkdownIcons(text: string): string {
 
 interface ChatPanelProps {
   isCollapsed?: boolean;
+  /** Proactive suggestion prompts. Appear as clickable chips above the input. */
+  proactiveSuggestions?: string[];
 }
 
 /** Catches render errors in chat content (e.g. markdown, PlaceTiles) to avoid white screen. */
@@ -163,10 +165,11 @@ function sortMessagesChronologically(messages: TamboThreadMessage[]): TamboThrea
   });
 }
 
-function ChatPanel({ isCollapsed = false }: ChatPanelProps) {
+function ChatPanel({ isCollapsed = false, proactiveSuggestions }: ChatPanelProps) {
   const { messages = [], currentThreadId, isStreaming, isIdentified } = useTambo();
   const { value = '', setValue, submit, isPending } = useTamboThreadInput();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
   const sortedMessages = useMemo(() => sortMessagesChronologically(messages), [messages]);
 
@@ -224,10 +227,33 @@ function ChatPanel({ isCollapsed = false }: ChatPanelProps) {
         ) : sortedMessages.length === 0 ? (
           <div className={styles.emptyState}>
             <Chat size={48} className={styles.emptyIcon} aria-hidden />
-            <p className={styles.emptyTitle}>Start a conversation</p>
+            <p className={styles.emptyTitle}>Your travel co-pilot</p>
             <p className={styles.emptySubtitle}>
-              Ask about your trip plan, search for places, or add locations and transport to your plan.
+              Ask me anything — whether Day 3 is realistic in one day, what to eat near your Day 2 stops, or how much it will all cost.
             </p>
+            <div className={styles.emptyPrompts}>
+              {[
+                'Is Day 1 realistic?',
+                'What to eat near my stops?',
+                'How much will this cost?',
+                'Am I missing anything?',
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  className={styles.emptyPromptChip}
+                  onClick={async () => {
+                    setValue(prompt);
+                    setTimeout(async () => {
+                      try { await submit(); } catch { /* handled below */ }
+                    }, 50);
+                  }}
+                  type="button"
+                  disabled={!isIdentified}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className={styles.messageList}>
@@ -314,6 +340,42 @@ function ChatPanel({ isCollapsed = false }: ChatPanelProps) {
             lowContrast={false}
             hideCloseButton={false}
           />
+        </div>
+      )}
+
+      {/* Proactive suggestion chips (B4) */}
+      {proactiveSuggestions && proactiveSuggestions.length > 0 && isIdentified && (
+        <div className={styles.proactiveSuggestions}>
+          <span className={styles.proactiveLabel}>Suggestion</span>
+          {proactiveSuggestions
+            .filter((s) => !dismissedSuggestions.has(s))
+            .map((suggestion) => (
+              <div key={suggestion} className={styles.proactiveChipRow}>
+                <button
+                  className={styles.proactiveChip}
+                  onClick={async () => {
+                    setValue(suggestion);
+                    setDismissedSuggestions((prev) => new Set([...prev, suggestion]));
+                    setTimeout(async () => {
+                      try { await submit(); } catch { /* error shown via submitError */ }
+                    }, 50);
+                  }}
+                  type="button"
+                  disabled={isPending || isStreaming}
+                >
+                  {suggestion}
+                </button>
+                <button
+                  className={styles.proactiveDismiss}
+                  onClick={() => setDismissedSuggestions((prev) => new Set([...prev, suggestion]))}
+                  type="button"
+                  aria-label="Dismiss suggestion"
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
         </div>
       )}
 

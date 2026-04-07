@@ -1,0 +1,92 @@
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/spacing' as *;
+
+// ——— Category picker grid ———
+.categoryGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.categoryButton {
+  padding: $spacing-03 $spacing-04;
+  border: 1px solid $border-subtle;
+  border-radius: 4px;
+  background-color: $layer-01;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  color: $text-primary;
+  transition: background-color 120ms cubic-bezier(0.2, 0, 0.38, 0.9),
+              border-color 120ms cubic-bezier(0.2, 0, 0.38, 0.9);
+
+  &:hover:not(:disabled) {
+    background-color: $layer-hover-01;
+    border-color: $border-strong;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: -2px;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.categoryButtonSelected {
+  border: 2px solid var(--cds-interactive, #0f62fe);
+  background-color: var(--cds-layer-selected-01, #d0e2ff);
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background-color: var(--cds-layer-selected-hover-01, #b8d3f4);
+    border-color: var(--cds-interactive, #0f62fe);
+  }
+}
+
+.categoryIcon {
+  color: $text-secondary;
+  flex-shrink: 0;
+}
+
+.categoryIconSelected {
+  color: var(--cds-interactive, #0f62fe);
+  flex-shrink: 0;
+}
+
+// ——— Metadata row (rating, hours) ———
+.metaRow {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+// ——— Enrichment loading indicator ———
+.enrichingStatus {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+// ——— Submitting overlay ———
+.submittingWrap {
+  display: flex;
+  justify-content: center;
+  margin-top: $spacing-05;
+}

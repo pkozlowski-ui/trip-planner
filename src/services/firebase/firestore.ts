@@ -14,6 +14,7 @@ import {
   DocumentSnapshot,
   DocumentData,
   getDocsFromCache,
+  getDocsFromServer,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -175,7 +176,7 @@ export async function getTripPlans(userId: string): Promise<TripPlan[]> {
 /**
  * Get a single trip plan with all days and locations
  */
-export async function getTripPlan(planId: string): Promise<TripPlan> {
+export async function getTripPlan(planId: string, fromServer = false): Promise<TripPlan> {
   const startTime = Date.now();
   
   try {
@@ -190,7 +191,7 @@ export async function getTripPlan(planId: string): Promise<TripPlan> {
     const planData = tripPlanDocToTripPlan(planDoc);
 
     // Get days with locations and transports in parallel
-    const days = await getDays(planId);
+    const days = await getDays(planId, fromServer);
 
     // Calculate computed properties
     const totalDays = days.length;
@@ -221,22 +222,24 @@ export async function getTripPlan(planId: string): Promise<TripPlan> {
 /**
  * Get all days for a trip plan with locations and transports
  */
-export async function getDays(planId: string): Promise<Day[]> {
+export async function getDays(planId: string, fromServer = false): Promise<Day[]> {
   const startTime = Date.now();
   try {
     const daysRef = collection(db, 'tripPlans', planId, 'days');
     const q = query(daysRef, orderBy('dayNumber', 'asc'));
     
-    // Try cache first
     let daysSnapshot;
-    try {
-      daysSnapshot = await getDocsFromCache(q);
-      if (daysSnapshot.docs.length > 0) {
-        console.log(`[getDays] Using cache (${daysSnapshot.docs.length} docs)`);
+    if (fromServer) {
+      daysSnapshot = await getDocsFromServer(q);
+    } else {
+      try {
+        daysSnapshot = await getDocsFromCache(q);
+        if (daysSnapshot.docs.length > 0) {
+          console.log(`[getDays] Using cache (${daysSnapshot.docs.length} docs)`);
+        }
+      } catch (cacheError) {
+        daysSnapshot = await getDocs(q);
       }
-    } catch (cacheError) {
-      // Cache miss, fetch from server
-      daysSnapshot = await getDocs(q);
     }
 
     const dayDocs = daysSnapshot.docs;
@@ -246,7 +249,7 @@ export async function getDays(planId: string): Promise<Day[]> {
       dayDocs.map(async (dayDoc) => {
         const dayId = dayDoc.id;
         const [locations, transports] = await Promise.all([
-          getLocations(planId, dayId),
+          getLocations(planId, dayId, fromServer),
           getTransports(planId, dayId),
         ]);
         return dayDocToDay(dayDoc, locations, transports);
@@ -276,21 +279,23 @@ export async function getDays(planId: string): Promise<Day[]> {
 /**
  * Get all locations for a day
  */
-export async function getLocations(planId: string, dayId: string): Promise<Location[]> {
+export async function getLocations(planId: string, dayId: string, fromServer = false): Promise<Location[]> {
   try {
     const locationsRef = collection(db, 'tripPlans', planId, 'days', dayId, 'locations');
     const q = query(locationsRef, orderBy('order', 'asc'));
     
-    // Try cache first
     let locationsSnapshot;
-    try {
-      locationsSnapshot = await getDocsFromCache(q);
-      if (locationsSnapshot.docs.length > 0) {
-        console.log(`[getLocations] Using cache (${locationsSnapshot.docs.length} docs)`);
+    if (fromServer) {
+      locationsSnapshot = await getDocsFromServer(q);
+    } else {
+      try {
+        locationsSnapshot = await getDocsFromCache(q);
+        if (locationsSnapshot.docs.length > 0) {
+          console.log(`[getLocations] Using cache (${locationsSnapshot.docs.length} docs)`);
+        }
+      } catch (cacheError) {
+        locationsSnapshot = await getDocs(q);
       }
-    } catch (cacheError) {
-      // Cache miss, fetch from server
-      locationsSnapshot = await getDocs(q);
     }
 
     const locations: Location[] = [];
@@ -459,9 +464,12 @@ export async function updateTripPlan(
  * Recompute and persist plan cover image from best location image.
  * Call after location add/update/delete/reorder.
  * Returns the picked cover so callers can update local state without refetching.
+ *
+ * Pass `existingPlan` when the caller already has the full plan in memory to avoid
+ * an extra Firestore read.
  */
-export async function refreshPlanCover(planId: string): Promise<PlanCoverResult | null> {
-  const plan = await getTripPlan(planId);
+export async function refreshPlanCover(planId: string, existingPlan?: TripPlan): Promise<PlanCoverResult | null> {
+  const plan = existingPlan ?? await getTripPlan(planId);
   const result = pickCoverImageFromPlan(plan);
   const planRef = doc(db, 'tripPlans', planId);
   await updateDoc(planRef, {

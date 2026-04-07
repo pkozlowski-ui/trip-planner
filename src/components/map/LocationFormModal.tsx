@@ -11,6 +11,7 @@ import { LocationCategory, MediaItem, ImageAttribution } from '../../types';
 import { getCategoryIcon } from '../../utils/categoryIcons';
 import { enrichLocationFromWikidata, parseWikidataId } from '../../services/wikimedia';
 import type { GeocodingResult } from '../../services/geocoding';
+import styles from './LocationFormModal.module.scss';
 
 interface LocationFormModalProps {
   open: boolean;
@@ -151,20 +152,15 @@ function LocationFormModal({
     }
   }, [open, initialData]);
 
-  const handleChange = (field: keyof LocationFormData, value: any) => {
+  const handleChange = (field: keyof LocationFormData, value: LocationFormData[keyof LocationFormData]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name.trim()) {
-      return;
-    }
-
+    if (!formData.name.trim()) return;
     await onSubmit(formData);
   };
-
 
   return (
     <Modal
@@ -179,115 +175,101 @@ function LocationFormModal({
     >
       <div>
         <Stack gap={6}>
-            {/* Location Name */}
-            <TextInput
-              id="location-name"
-              labelText="Location Name *"
-              value={formData.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="Enter location name"
-              required
-              disabled={isSubmitting}
-            />
+          {/* Location Name */}
+          <TextInput
+            id="location-name"
+            labelText="Location Name *"
+            value={formData.name}
+            onChange={(e) => handleChange('name', e.target.value)}
+            placeholder="Enter location name"
+            required
+            disabled={isSubmitting}
+          />
 
-            {/* Rating and Opening Hours (read-only from map) */}
-            {(formData.rating || formData.openingHours) && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                {formData.rating && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '12px', color: '#666' }}>
-                    <Star size={12} />
-                    <span>{formData.rating.toFixed(1)}/5</span>
-                  </div>
-                )}
-                {formData.openingHours && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '12px', color: '#666' }}>
-                    <Time size={12} />
-                    <span>{formData.openingHours}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Category Buttons */}
-            <div>
-              <label style={{ 
-                fontSize: '0.75rem', 
-                fontWeight: 600, 
-                marginBottom: '0.5rem',
-                display: 'block',
-                color: '#161616'
-              }}>
-                Category *
-              </label>
-              <div style={{ 
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '0.5rem' 
-              }}>
-                {LOCATION_CATEGORIES.map((cat) => {
-                  const IconComponent = getCategoryIcon(cat.value);
-                  const isSelected = formData.category === cat.value;
-                  return (
-                    <button
-                      key={cat.value}
-                      type="button"
-                      onClick={() => handleChange('category', cat.value)}
-                      disabled={isSubmitting}
-                      style={{
-                        padding: '0.5rem 0.75rem',
-                        border: isSelected ? '2px solid #0f62fe' : '1px solid #e0e0e0',
-                        borderRadius: '4px',
-                        backgroundColor: isSelected ? '#e8f4ff' : '#ffffff',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.375rem',
-                        transition: 'all 0.15s',
-                        fontSize: '0.8125rem',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isSelected) {
-                          e.currentTarget.style.borderColor = '#a8a8a8';
-                          e.currentTarget.style.backgroundColor = '#f4f4f4';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSelected) {
-                          e.currentTarget.style.borderColor = '#e0e0e0';
-                          e.currentTarget.style.backgroundColor = '#ffffff';
-                        }
-                      }}
-                    >
-                      <IconComponent size={16} style={{ color: isSelected ? '#0f62fe' : '#525252' }} />
-                      <span style={{ fontWeight: isSelected ? 600 : 400 }}>{cat.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+          {/* Read-only metadata fetched from map search */}
+          {(formData.rating || formData.openingHours) && (
+            <div className={styles.metaRow}>
+              {formData.rating && (
+                <div className={styles.metaItem}>
+                  <Star size={12} aria-hidden />
+                  <span>{formData.rating.toFixed(1)}/5</span>
+                </div>
+              )}
+              {formData.openingHours && (
+                <div className={styles.metaItem}>
+                  <Time size={12} aria-hidden />
+                  <span>{formData.openingHours}</span>
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Description */}
-            {isEnriching && (
-              <div style={{ marginBottom: '0.5rem', fontSize: '12px', color: '#525252', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Loading withOverlay={false} small description="" />
-                <span>Loading details from Wikipedia…</span>
-              </div>
-            )}
-            <TextArea
-              id="location-description"
-              labelText="Description"
-              value={formData.description || ''}
-              onChange={(e) => handleChange('description', e.target.value)}
-              placeholder="Enter description"
-              rows={4}
-              disabled={isSubmitting}
-            />
-          </Stack>
+          {/* Category picker */}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                marginBottom: '0.5rem',
+                color: 'var(--cds-text-primary, #161616)',
+              }}
+            >
+              Category *
+            </label>
+            <div className={styles.categoryGrid}>
+              {LOCATION_CATEGORIES.map((cat) => {
+                const IconComponent = getCategoryIcon(cat.value);
+                const isSelected = formData.category === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => handleChange('category', cat.value)}
+                    disabled={isSubmitting}
+                    className={`${styles.categoryButton}${isSelected ? ` ${styles.categoryButtonSelected}` : ''}`}
+                    aria-pressed={isSelected}
+                  >
+                    <IconComponent
+                      size={16}
+                      className={isSelected ? styles.categoryIconSelected : styles.categoryIcon}
+                      aria-hidden
+                    />
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Enrichment loading */}
+          {isEnriching && (
+            <div className={styles.enrichingStatus}>
+              <Loading withOverlay={false} small description="" />
+              <span>Loading details from Wikipedia…</span>
+            </div>
+          )}
+
+          {/* Description */}
+          <TextArea
+            id="location-description"
+            labelText="Description"
+            value={formData.description || ''}
+            onChange={(e) => handleChange('description', e.target.value)}
+            placeholder="Enter description"
+            rows={4}
+            disabled={isSubmitting}
+          />
+        </Stack>
       </div>
 
       {isSubmitting && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-          <Loading description={isEditMode ? 'Updating location...' : 'Adding location...'} withOverlay={false} small />
+        <div className={styles.submittingWrap}>
+          <Loading
+            description={isEditMode ? 'Updating location...' : 'Adding location...'}
+            withOverlay={false}
+            small
+          />
         </div>
       )}
     </Modal>

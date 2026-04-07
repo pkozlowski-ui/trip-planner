@@ -273,27 +273,25 @@
 - [ ] Strona publicznego widoku planu
 - [ ] Copy link button
 
-#### Krok 26: Offline Mode (PWA)
-- [ ] Service Worker
-- [ ] Cache strategia dla map
-- [ ] Offline dostęp do zapisanych planów
-- [ ] Sync po powrocie online
-- [ ] Manifest.json
-
-
 ---
 
 ## 📊 Postęp Ogólny
 
-- **Ukończone:** 27/34 kroków (79%)
+- **Ukończone:** 27/33 kroków (82%)
 - **W trakcie:** 0 kroków
-- **Planowane:** 7 kroków
+- **Planowane:** 6 kroków
 
 ## 🎯 Aktualny Status
 
 **Ostatni ukończony krok:** Phase 6.5 - Search UX Enhancement (Krok 22a-22f)
 
-**Następny krok:** Phase 7 - Advanced Features (Sharing, Offline Mode)
+**Następny krok:** Phase 7 - Advanced Features (Sharing)
+
+## ⚠️ Uwagi z audytu kodu
+
+- **Krok 24 (Media):** Backend gotowy (`storage.ts`, `firestore.ts`), ale UI w `LocationFormModal` **nie podłączone** — brak FileUploader/upload flow w React
+- **Krok 25 (Sharing):** Pola `isPublic`/`shareToken` istnieją w typach i Firestore, ale brak: route `/share/:token`, query `getPlanByShareToken`, UI generowania linku
+- **Nie w planie (zaimplementowane):** Chat/Tambo agent layer (`ChatPanel`, `ChatMapContext`, `tamboComponents`, `tamboTools`), Overpass API (`services/overpass.ts`), Wikimedia (`services/wikimedia.ts`), `useAutoSave` hook
 
 ## 📝 Notatki
 

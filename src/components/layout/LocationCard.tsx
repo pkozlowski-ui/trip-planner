@@ -38,7 +38,7 @@ const LocationCard = forwardRef<HTMLDivElement, LocationCardProps>(({ location, 
                 alt=""
                 width={48}
                 height={48}
-                loading="eager"
+                loading="lazy"
               />
             </div>
           ) : (

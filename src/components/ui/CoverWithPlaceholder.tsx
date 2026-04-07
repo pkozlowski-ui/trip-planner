@@ -25,43 +25,32 @@ export function CoverWithPlaceholder({
   aspectRatio,
 }: CoverWithPlaceholderProps) {
   const url = coverUrl?.trim();
-  const [initialLoaded] = useState(() => (url ? hasLoaded(url) : true));
-  const imageLayerRef = useRef<HTMLDivElement | null>(null);
-  const skeletonRef = useRef<HTMLDivElement | null>(null);
+  const [isLoaded, setIsLoaded] = useState(() => (url ? hasLoaded(url) : true));
   const preloadRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     if (!url) return;
-    if (initialLoaded) {
-      imageLayerRef.current?.classList.add(COVER_LOADED_CLASS);
-      if (skeletonRef.current) skeletonRef.current.style.display = 'none';
+    if (hasLoaded(url)) {
+      setIsLoaded(true);
       return;
     }
+    setIsLoaded(false);
     const img = new Image();
     preloadRef.current = img;
     img.onload = () => {
       if (preloadRef.current !== img) return;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'aa31bd'},body:JSON.stringify({sessionId:'aa31bd',location:'CoverWithPlaceholder.tsx:onload',message:'Cover image loaded',data:{urlLen:url?.length},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-      // #endregion
       markLoaded(url);
-      imageLayerRef.current?.classList.add(COVER_LOADED_CLASS);
-      if (skeletonRef.current) skeletonRef.current.style.display = 'none';
-    };
-    img.onerror = () => {
-      if (preloadRef.current === img && skeletonRef.current) skeletonRef.current.style.display = 'none';
+      setIsLoaded(true);
     };
     img.src = url;
     return () => {
       preloadRef.current = null;
       img.src = '';
-      imageLayerRef.current?.classList.remove(COVER_LOADED_CLASS);
-      if (skeletonRef.current) skeletonRef.current.style.display = '';
     };
-  }, [url, initialLoaded]);
+  }, [url]);
 
   const showCover = !!url;
-  const showSkeleton = url && !initialLoaded;
+  const showSkeleton = url && !isLoaded;
   const style: React.CSSProperties = {
     ...(aspectRatio
       ? { paddingBottom: aspectRatio, height: 0, position: 'relative' as const, overflow: 'hidden' }
@@ -80,7 +69,6 @@ export function CoverWithPlaceholder({
       />
       {showSkeleton && (
         <div
-          ref={skeletonRef}
           style={{
             position: 'absolute',
             inset: 0,
@@ -100,17 +88,16 @@ export function CoverWithPlaceholder({
       )}
       {showCover && (
         <div
-          ref={imageLayerRef}
           style={{
             position: 'absolute',
             inset: 0,
             backgroundImage: `url(${url})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: initialLoaded ? 1 : 0,
+            opacity: isLoaded ? 1 : 0,
             transition: 'opacity 0.2s cubic-bezier(0.2, 0, 0.38, 0.9)',
           }}
-          className={initialLoaded ? COVER_LOADED_CLASS : undefined}
+          className={isLoaded ? COVER_LOADED_CLASS : undefined}
         />
       )}
     </div>

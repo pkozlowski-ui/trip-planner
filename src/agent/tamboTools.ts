@@ -11,8 +11,10 @@ import {
   createLocation,
   createDay,
   createTransport,
+  moveLocation,
+  updateLocation,
 } from '../services/firebase/firestore';
-import { calculateRoute, formatDuration } from '../services/routing';
+import { calculateRoute, calculateDistance, formatDuration } from '../services/routing';
 import type { TripPlan } from '../types';
 import type { LocationCategory, TravelType } from '../types';
 
@@ -33,6 +35,7 @@ export interface TamboAgentDeps {
 /**
  * Build context helper for current plan summary. Call this in PlanEditor with
  * currentPlan and mapBounds so the agent receives plan context on every message.
+ * Includes dates, coordinates, categories, and transport segments for richer AI responses.
  */
 export function buildPlanSummaryContextHelper(deps: TamboAgentDeps) {
   return function current_plan_summary() {
@@ -43,18 +46,48 @@ export function buildPlanSummaryContextHelper(deps: TamboAgentDeps) {
         message: 'No trip plan is open. Open or create a plan first to add locations or get suggestions.',
       };
     }
+
     const days = (currentPlan.days || []).map((day) => ({
       dayNumber: day.dayNumber,
       dayId: day.id,
+      date: day.date ? day.date.toISOString().split('T')[0] : undefined,
       locationNames: (day.locations || []).map((loc) => loc.name),
       locationIds: (day.locations || []).map((loc) => ({ id: loc.id, name: loc.name })),
+      // Enriched location data for feasibility checks, budget estimation, route optimization
+      locations: (day.locations || []).map((loc) => ({
+        id: loc.id,
+        name: loc.name,
+        category: loc.category,
+        lat: loc.coordinates?.lat,
+        lng: loc.coordinates?.lng,
+        openingHours: loc.openingHours,
+        duration: loc.duration,
+        notes: loc.notes,
+      })),
+      // Transport segments between locations on this day
+      transports: (day.transports || []).map((t) => ({
+        id: t.id,
+        fromLocationId: t.fromLocationId,
+        toLocationId: t.toLocationId,
+        type: t.type,
+        time: t.time,
+        distance: t.distance,
+      })),
     }));
+
+    // Total number of locations across all days
+    const totalLocations = days.reduce((sum, d) => sum + d.locations.length, 0);
+
     return {
       hasPlan: true,
       planId,
       title: currentPlan.title,
       description: currentPlan.description,
+      // Trip dates for seasonal advice and day-of-week calculations
+      startDate: currentPlan.startDate ? currentPlan.startDate.toISOString().split('T')[0] : undefined,
+      endDate: currentPlan.endDate ? currentPlan.endDate.toISOString().split('T')[0] : undefined,
       daysCount: days.length,
+      totalLocations,
       days,
       mapBounds: mapBounds
         ? { south: mapBounds.south, west: mapBounds.west, north: mapBounds.north, east: mapBounds.east }
@@ -318,11 +351,254 @@ export function buildTamboTools(deps: TamboAgentDeps) {
     }),
   });
 
+  // ── P0: move_location ──────────────────────────────────────────────────────
+  const moveLocationTool = defineTool({
+    name: 'move_location',
+    description: 'Move a location to a different day or reorder it within the same day. Use day IDs from the plan summary. Always confirm with the user before calling this.',
+    tool: async ({
+      locationId,
+      fromDayId,
+      toDayId,
+      newOrder,
+    }: {
+      locationId: string;
+      fromDayId: string;
+      toDayId: string;
+      newOrder: number;
+    }) => {
+      if (!planId || planId === 'new') {
+        return { success: false, error: 'No trip plan is open.' };
+      }
+      try {
+        await moveLocation(planId, fromDayId, locationId, toDayId, newOrder);
+        await loadPlan(planId, true);
+        const fromDay = currentPlan?.days?.find((d) => d.id === fromDayId);
+        const toDay = currentPlan?.days?.find((d) => d.id === toDayId);
+        const loc = fromDay?.locations?.find((l) => l.id === locationId);
+        return {
+          success: true,
+          locationName: loc?.name,
+          fromDay: fromDay?.dayNumber,
+          toDay: toDay?.dayNumber,
+          newOrder,
+        };
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : 'Failed to move location' };
+      }
+    },
+    inputSchema: z.object({
+      locationId: z.string().describe('ID of the location to move'),
+      fromDayId: z.string().describe('Day ID where the location currently is'),
+      toDayId: z.string().describe('Day ID to move the location to (same as fromDayId for reorder)'),
+      newOrder: z.number().describe('New position index (0-based) within the target day'),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      locationName: z.string().optional(),
+      fromDay: z.number().optional(),
+      toDay: z.number().optional(),
+      newOrder: z.number().optional(),
+      error: z.string().optional(),
+    }),
+  });
+
+  // ── P0: estimate_day_travel_time ───────────────────────────────────────────
+  const estimateDayTravelTimeTool = defineTool({
+    name: 'estimate_day_travel_time',
+    description: 'Estimate the total travel time and distance for all locations on a given day, in order. Useful for feasibility checks — if a day has too many locations. Returns total walking/transit time and flags days that may be too busy.',
+    tool: async ({ dayNumber, travelType }: { dayNumber: number; travelType?: TravelType }) => {
+      if (!currentPlan?.days?.length) {
+        return { error: 'No trip plan loaded.' };
+      }
+      const day = currentPlan.days.find((d) => d.dayNumber === dayNumber);
+      if (!day) {
+        return { error: `Day ${dayNumber} not found.` };
+      }
+      const locs = day.locations || [];
+      if (locs.length < 2) {
+        return {
+          dayNumber,
+          locationCount: locs.length,
+          totalDistanceKm: 0,
+          totalTravelTimeMinutes: 0,
+          segments: [],
+          verdict: locs.length <= 1 ? 'Too few locations to calculate travel time.' : 'OK',
+        };
+      }
+
+      const mode = travelType ?? 'walking';
+      const segments: Array<{ from: string; to: string; distanceKm: number; timeMinutes: number }> = [];
+      let totalDistance = 0;
+
+      for (let i = 0; i < locs.length - 1; i++) {
+        const from = locs[i];
+        const to = locs[i + 1];
+        if (!from.coordinates || !to.coordinates) continue;
+        try {
+          const result = await calculateRoute(from.coordinates, to.coordinates, mode);
+          const distKm = result.distance;
+          const timeMin = Math.round(result.duration / 60);
+          segments.push({
+            from: from.name,
+            to: to.name,
+            distanceKm: Math.round(distKm * 10) / 10,
+            timeMinutes: timeMin,
+          });
+          totalDistance += distKm;
+        } catch {
+          // Fallback to straight-line distance
+          const dist = calculateDistance(from.coordinates, to.coordinates);
+          const timeMin = Math.round((dist / (mode === 'walking' ? 5 : 30)) * 60);
+          segments.push({
+            from: from.name,
+            to: to.name,
+            distanceKm: Math.round(dist * 10) / 10,
+            timeMinutes: timeMin,
+          });
+          totalDistance += dist;
+        }
+      }
+
+      const totalTravelMins = segments.reduce((s, seg) => s + seg.timeMinutes, 0);
+      const totalActivityMins = locs.length * 90; // rough 1.5h per location
+      const totalDayMins = totalTravelMins + totalActivityMins;
+      const totalDayHours = Math.round(totalDayMins / 6) / 10;
+
+      let verdict = 'OK';
+      if (totalDayHours > 10) verdict = 'Very busy — consider splitting into 2 days';
+      else if (totalDayHours > 8) verdict = 'Busy — plan for an early start';
+
+      return {
+        dayNumber,
+        locationCount: locs.length,
+        totalDistanceKm: Math.round(totalDistance * 10) / 10,
+        totalTravelTimeMinutes: totalTravelMins,
+        estimatedTotalDayHours: totalDayHours,
+        segments,
+        verdict,
+      };
+    },
+    inputSchema: z.object({
+      dayNumber: z.number().describe('Day number (1-based) to analyse'),
+      travelType: z.enum(TRAVEL_TYPES as unknown as [string, ...string[]]).optional().describe('Transport mode to use for travel time estimates (default: walking)'),
+    }),
+    outputSchema: z.object({
+      dayNumber: z.number().optional(),
+      locationCount: z.number().optional(),
+      totalDistanceKm: z.number().optional(),
+      totalTravelTimeMinutes: z.number().optional(),
+      estimatedTotalDayHours: z.number().optional(),
+      segments: z.array(z.object({
+        from: z.string(),
+        to: z.string(),
+        distanceKm: z.number(),
+        timeMinutes: z.number(),
+      })).optional(),
+      verdict: z.string().optional(),
+      error: z.string().optional(),
+    }),
+  });
+
+  // ── P1: update_location_notes ──────────────────────────────────────────────
+  const updateLocationNotesTool = defineTool({
+    name: 'update_location_notes',
+    description: 'Add or update a note/tip on a specific location. Use this when the user says things like "add a note to X", "remind me to book tickets for Y", or "mark Z as must-book in advance".',
+    tool: async ({
+      dayNumber,
+      locationId,
+      notes,
+    }: {
+      dayNumber: number;
+      locationId: string;
+      notes: string;
+    }) => {
+      if (!planId || planId === 'new') {
+        return { success: false, error: 'No trip plan is open.' };
+      }
+      const day = currentPlan?.days?.find((d) => d.dayNumber === dayNumber);
+      if (!day) {
+        return { success: false, error: `Day ${dayNumber} not found.` };
+      }
+      const loc = day.locations?.find((l) => l.id === locationId);
+      if (!loc) {
+        return { success: false, error: 'Location not found on this day. Use get_plan_summary to find valid IDs.' };
+      }
+      try {
+        await updateLocation(planId, day.id, locationId, { notes: notes.trim() });
+        await loadPlan(planId, true);
+        return { success: true, locationName: loc.name, notes: notes.trim() };
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : 'Failed to update location' };
+      }
+    },
+    inputSchema: z.object({
+      dayNumber: z.number().describe('Day number (1-based) the location is on'),
+      locationId: z.string().describe('ID of the location to update'),
+      notes: z.string().describe('Note or reminder to add to the location'),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      locationName: z.string().optional(),
+      notes: z.string().optional(),
+      error: z.string().optional(),
+    }),
+  });
+
+  // ── P1: reorder_day_locations ──────────────────────────────────────────────
+  const reorderDayLocationsTool = defineTool({
+    name: 'reorder_day_locations',
+    description: 'Reorder all locations within a day to an optimized sequence. Provide the location IDs in the desired order. Use this after suggesting a better route to the user and getting their confirmation.',
+    tool: async ({
+      dayNumber,
+      orderedLocationIds,
+    }: {
+      dayNumber: number;
+      orderedLocationIds: string[];
+    }) => {
+      if (!planId || planId === 'new') {
+        return { success: false, error: 'No trip plan is open.' };
+      }
+      const day = currentPlan?.days?.find((d) => d.dayNumber === dayNumber);
+      if (!day) {
+        return { success: false, error: `Day ${dayNumber} not found.` };
+      }
+      try {
+        // Update each location's order field via moveLocation (same day, new order)
+        for (let i = 0; i < orderedLocationIds.length; i++) {
+          const locId = orderedLocationIds[i];
+          await moveLocation(planId, day.id, locId, day.id, i);
+        }
+        await loadPlan(planId, true);
+        const names = orderedLocationIds.map((id) => {
+          const loc = day.locations?.find((l) => l.id === id);
+          return loc?.name ?? id;
+        });
+        return { success: true, dayNumber, newOrder: names };
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : 'Failed to reorder locations' };
+      }
+    },
+    inputSchema: z.object({
+      dayNumber: z.number().describe('Day number (1-based)'),
+      orderedLocationIds: z.array(z.string()).describe('Location IDs in the new desired order (from first to last stop)'),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      dayNumber: z.number().optional(),
+      newOrder: z.array(z.string()).optional(),
+      error: z.string().optional(),
+    }),
+  });
+
   return [
     getPlanSummaryTool,
     searchPlacesTool,
     addLocationToPlanTool,
     addDayTool,
     addTransportTool,
+    moveLocationTool,
+    estimateDayTravelTimeTool,
+    updateLocationNotesTool,
+    reorderDayLocationsTool,
   ];
 }

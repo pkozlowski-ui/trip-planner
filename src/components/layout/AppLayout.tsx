@@ -36,6 +36,8 @@ interface AppLayoutProps {
   sidebarProps?: SidebarProps;
   chatPanelCollapsed?: boolean;
   isChatOpen?: boolean;
+  /** Proactive suggestion prompts shown as clickable chips in ChatPanel. Rate-limited by caller. */
+  proactiveSuggestions?: string[];
 }
 
 export function AppLayout({ 
@@ -47,6 +49,7 @@ export function AppLayout({
   sidebarProps,
   chatPanelCollapsed = false,
   isChatOpen = false,
+  proactiveSuggestions,
 }: AppLayoutProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -62,7 +65,12 @@ export function AppLayout({
         >
           {children}
         </main>
-        {showChatPanel && isChatOpen && <ChatPanel isCollapsed={chatPanelCollapsed} />}
+        {showChatPanel && isChatOpen && (
+          <ChatPanel
+            isCollapsed={chatPanelCollapsed}
+            proactiveSuggestions={proactiveSuggestions}
+          />
+        )}
       </div>
     </div>
   );

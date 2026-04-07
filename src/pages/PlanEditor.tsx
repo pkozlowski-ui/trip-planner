@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import { useTripPlans } from '../contexts/TripPlansContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +18,7 @@ import { calculateRoute, formatDuration } from '../services/routing';
 import { InlineNotification, Loading } from '@carbon/react';
 import { TamboProvider } from '@tambo-ai/react';
 import { ChatMapProvider } from '../contexts/ChatMapContext';
-import { buildTamboTools, buildPlanSummaryContextHelper } from '../agent/tamboTools';
+import { buildTamboTools, buildPlanSummaryContextHelper, type TamboAgentDeps } from '../agent/tamboTools';
 import { tamboChatComponents } from '../agent/tamboComponents';
 
 function geocodingResultToCategory(result: GeocodingResult): LocationCategory {
@@ -79,13 +79,10 @@ function PlanEditor() {
   const [error, setError] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
+  const [showWizardToast, setShowWizardToast] = useState(false);
+  const routerLocation = useLocation();
   const locationRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const enrichedLocationIdsRef = useRef<Set<string>>(new Set());
-  // #region agent log
-  const planEditorRenderCountRef = useRef(0);
-  planEditorRenderCountRef.current += 1;
-  fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'aa31bd'},body:JSON.stringify({sessionId:'aa31bd',location:'PlanEditor.tsx:render',message:'PlanEditor render',data:{renderCount:planEditorRenderCountRef.current,planId:planId ?? null},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-  // #endregion
 
   // Memoized callback for bounds changes to prevent unnecessary re-renders
   const handleBoundsChange = useCallback((bounds: MapBounds) => {
@@ -93,6 +90,15 @@ function PlanEditor() {
   }, []);
 
   const onSearchMarkerClear = useCallback(() => setSearchMarker(null), []);
+
+  // Show toast when entering from the Dashboard Wizard
+  useEffect(() => {
+    if (routerLocation.state?.fromWizard) {
+      setShowWizardToast(true);
+      const t = setTimeout(() => setShowWizardToast(false), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [routerLocation.state]);
 
   useEffect(() => {
     if (planId && planId !== 'new') {
@@ -104,7 +110,8 @@ function PlanEditor() {
     }
   }, [planId, loadPlan]);
 
-  // Pull Wikipedia/Commons images for existing locations that have no image (by wikidataId or by name search)
+  // Pull Wikipedia/Commons images for existing locations that have no image (by wikidataId or by name search).
+  // Runs all locations in parallel (capped at 4 concurrent), then a single loadPlan + refreshPlanCover at the end.
   useEffect(() => {
     if (!planId || planId === 'new' || !currentPlan?.days) return;
 
@@ -121,32 +128,46 @@ function PlanEditor() {
 
     if (toEnrich.length === 0) return;
 
+    const CONCURRENCY = 4;
     let cancelled = false;
-    const run = async () => {
-      for (const { location, dayId } of toEnrich) {
+
+    const enrichOne = async ({ location, dayId }: { location: Location; dayId: string }): Promise<boolean> => {
+      if (cancelled) return false;
+      let qId: string | null = location.wikidataId ? parseWikidataId(location.wikidataId) : null;
+      if (!qId && location.name?.trim()) {
+        qId = await searchWikidataByQuery(location.name.trim());
+      }
+      if (!qId || cancelled) return false;
+      const enriched = await enrichLocationFromWikidata(qId);
+      if (cancelled || !enriched.image) return false;
+      await updateLocation(planId, dayId, location.id, {
+        image: enriched.image,
+        imageAttribution: enriched.imageAttribution,
+        wikidataId: qId,
+      });
+      enrichedLocationIdsRef.current.add(location.id);
+      return true;
+    };
+
+    const runBatch = async () => {
+      let anyUpdated = false;
+      // Process in batches of CONCURRENCY
+      for (let i = 0; i < toEnrich.length; i += CONCURRENCY) {
         if (cancelled) break;
-        try {
-          let qId: string | null = location.wikidataId ? parseWikidataId(location.wikidataId) : null;
-          if (!qId && location.name?.trim()) {
-            qId = await searchWikidataByQuery(location.name.trim());
-          }
-          if (!qId) continue;
-          const enriched = await enrichLocationFromWikidata(qId);
-          if (cancelled || !enriched.image) continue;
-          await updateLocation(planId, dayId, location.id, {
-            image: enriched.image,
-            imageAttribution: enriched.imageAttribution,
-            wikidataId: qId,
-          });
-          enrichedLocationIdsRef.current.add(location.id);
-          await loadPlan(planId, true);
-          await refreshPlanCover(planId);
-        } catch {
-          // Skip failed; may retry on next plan load
+        const batch = toEnrich.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(batch.map(enrichOne));
+        if (results.some((r) => r.status === 'fulfilled' && r.value === true)) {
+          anyUpdated = true;
         }
       }
+      // Single reload and cover refresh after all enrichments complete
+      if (!cancelled && anyUpdated) {
+        await loadPlan(planId, true);
+        await refreshPlanCover(planId);
+      }
     };
-    run();
+
+    runBatch().catch(() => {});
     return () => { cancelled = true; };
   }, [planId, currentPlan?.id, loadPlan]);
 
@@ -301,9 +322,6 @@ function PlanEditor() {
 
 
   const handleSearchSelect = (result: GeocodingResult, enriched?: EnrichedLocationData) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0fc8e9'},body:JSON.stringify({sessionId:'0fc8e9',location:'PlanEditor.tsx:handleSearchSelect',message:'PlanEditor received search select',data:{lat:result?.lat,lng:result?.lon,displayName:result?.display_name?.slice(0,40)},hypothesisId:'H4',hypothesisId2:'H5',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
     setMapCenter([lat, lng]);
@@ -336,14 +354,8 @@ function PlanEditor() {
   };
 
   const handleMapClick = async (lat: number, lng: number, event?: L.LeafletMouseEvent) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlanEditor.tsx:82',message:'handleMapClick called',data:{planId,isNew:planId==='new',hasCurrentPlan:!!currentPlan,currentPlanId:currentPlan?.id,loading},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-    // #endregion
     // Only show context menu if plan is loaded and not a new plan
     if (!planId || planId === 'new' || !currentPlan) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PlanEditor.tsx:85',message:'handleMapClick blocked',data:{planId,isNew:planId==='new',hasCurrentPlan:!!currentPlan,reason:!planId?'no planId':planId==='new'?'planId is new':'no currentPlan'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-      // #endregion
       setError('Please create and save a trip plan first before adding markers');
       return;
     }
@@ -947,13 +959,72 @@ function PlanEditor() {
     }),
     [planId, currentPlan, loadPlan, mapBounds]
   );
-  const tamboContextHelpers = useMemo(
-    () => ({
-      current_plan_summary: buildPlanSummaryContextHelper(agentDeps),
-    }),
-    [agentDeps]
-  );
+
+  // Keep a ref to agentDeps so context helpers and tools always see the latest values
+  // without recreating their object references on every render.
+  // Passing a new contextHelpers reference on each render triggers an infinite setState
+  // loop inside TamboContextHelpersProvider from the @tambo-ai/react library.
+  const agentDepsRef = useRef<TamboAgentDeps>(agentDeps);
+  useEffect(() => { agentDepsRef.current = agentDeps; });
+
+  const tamboContextHelpers = useMemo(() => ({
+    current_plan_summary: () => buildPlanSummaryContextHelper(agentDepsRef.current)(),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
   const tamboTools = useMemo(() => buildTamboTools(agentDeps), [agentDeps]);
+
+  // Compute proactive suggestions from current plan state (B4)
+  // Rate-limited: only the strongest signal per session (tracked by ref)
+  const shownProactiveSuggestionsRef = useRef<Set<string>>(new Set());
+  const proactiveSuggestions = useMemo<string[]>(() => {
+    if (!currentPlan?.days?.length) return [];
+    const suggestions: string[] = [];
+
+    for (const day of currentPlan.days) {
+      const locCount = day.locations?.length ?? 0;
+      if (locCount >= 4) {
+        const key = `busy-day-${day.dayNumber}`;
+        if (!shownProactiveSuggestionsRef.current.has(key)) {
+          shownProactiveSuggestionsRef.current.add(key);
+          suggestions.push(`Day ${day.dayNumber} has ${locCount} stops — is that realistic in one day?`);
+          break; // max 1 proactive suggestion per render
+        }
+      }
+    }
+
+    if (suggestions.length === 0) {
+      const day1 = currentPlan.days.find((d) => d.dayNumber === 1);
+      if (day1 && (day1.locations?.length ?? 0) === 0 && currentPlan.days.length > 0) {
+        const key = 'empty-day-1';
+        if (!shownProactiveSuggestionsRef.current.has(key)) {
+          shownProactiveSuggestionsRef.current.add(key);
+          suggestions.push('Day 1 is empty — suggest some arrival-day activities?');
+        }
+      }
+    }
+
+    if (suggestions.length === 0 && currentPlan.days.length >= 2) {
+      for (let i = 0; i < currentPlan.days.length - 1; i++) {
+        const dayA = currentPlan.days[i];
+        const dayB = currentPlan.days[i + 1];
+        const cityA = dayA.locations?.[0]?.name;
+        const cityB = dayB.locations?.[0]?.name;
+        if (cityA && cityB && cityA === cityB) {
+          const key = `duplicate-city-${i}`;
+          if (!shownProactiveSuggestionsRef.current.has(key)) {
+            shownProactiveSuggestionsRef.current.add(key);
+            suggestions.push(
+              `Days ${dayA.dayNumber} and ${dayB.dayNumber} both start in ${cityA} — optimize the route order?`
+            );
+            break;
+          }
+        }
+      }
+    }
+
+    return suggestions;
+  }, [currentPlan]);
 
   const layoutContent = (
     <AppLayout
@@ -961,6 +1032,7 @@ function PlanEditor() {
       showSidebar={true}
       showChatPanel={!!tamboApiKey}
       isChatOpen={isChatOpen}
+      proactiveSuggestions={isChatOpen ? proactiveSuggestions : undefined}
       headerProps={{
         onLocationSelect: handleSearchSelect,
         onAddLocationFromSearch: handleAddLocationFromSearch,
@@ -990,6 +1062,16 @@ function PlanEditor() {
               title="Error"
               subtitle={error}
               onClose={() => setError(null)}
+            />
+          </div>
+        )}
+        {showWizardToast && (
+          <div style={{ position: 'absolute', top: '1rem', left: '50%', transform: 'translateX(-50%)', zIndex: 10001, minWidth: '320px', maxWidth: '480px' }}>
+            <InlineNotification
+              kind="success"
+              title="Your skeleton is ready."
+              subtitle="Click any day in the sidebar to start filling it out, or ask the AI co-pilot for suggestions."
+              onClose={() => setShowWizardToast(false)}
             />
           </div>
         )}

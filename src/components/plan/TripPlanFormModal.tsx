@@ -178,7 +178,7 @@ function TripPlanFormModal({
         </FormGroup>
 
         {isSubmitting && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--cds-spacing-05, 1rem)' }}>
             <Loading description={isEditMode ? 'Updating plan...' : 'Creating plan...'} withOverlay={false} small />
           </div>
         )}
@@ -214,7 +214,7 @@ function TripPlanFormModal({
     >
       <p>This will permanently delete this plan and all its days and locations. This action cannot be undone.</p>
       {isDeleting && (
-        <div style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: 'var(--cds-spacing-05, 1rem)' }}>
           <Loading description="Deleting plan..." withOverlay={false} small />
         </div>
       )}

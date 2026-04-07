@@ -3,7 +3,6 @@ import {
   InlineNotification,
   Loading,
   ClickableTile,
-  Link,
   Tabs,
   TabList,
   Tab,
@@ -20,6 +19,7 @@ import {
   refreshPlanCover,
   updateLocation,
   deleteDuplicatePlans,
+  createTripPlan,
 } from '../services/firebase/firestore';
 import {
   searchWikidataByQuery,
@@ -33,6 +33,8 @@ import {
   updateExamplePlanLocationsToEnglish,
   EXAMPLE_PLAN_TITLES_EN,
 } from '../utils/seedExamplePlans';
+import TripPlanFormModal, { TripPlanFormData } from '../components/plan/TripPlanFormModal';
+import DashboardWizard from '../components/dashboard/DashboardWizard';
 
 type DashboardTabId = 'all' | 'upcoming' | 'completed';
 
@@ -93,15 +95,8 @@ function TripPlanCard({
   onClick: () => void;
 }) {
   const gradient = useMemo(() => getGradientForPlan(plan.id), [plan.id]);
-  const [stats, setStats] = useState<{ days: number; points: number } | null>(null);
-
-  useEffect(() => {
-    getTripPlan(plan.id).then((fullPlan) => {
-      setStats({ days: fullPlan.totalDays, points: fullPlan.totalPoints });
-    }).catch(() => {
-      setStats({ days: plan.totalDays || 0, points: plan.totalPoints || 0 });
-    });
-  }, [plan.id, plan.totalDays, plan.totalPoints]);
+  // Use summary fields directly — getTripPlans already returns totalDays/totalPoints
+  const stats = { days: plan.totalDays || 0, points: plan.totalPoints || 0 };
 
   const coverUrl = plan.coverImage ?? coverOverride?.url;
   const fallbackStyle = useMemo(
@@ -138,14 +133,9 @@ function TripPlanCard({
           </p>
         )}
         <div className="trip-plan-card__divider" />
-        <Link
-          href="#"
-          className="trip-plan-card__action"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
-          renderIcon={ArrowRight}
-        >
-          View plan
-        </Link>
+        <span className="trip-plan-card__action" aria-hidden="true">
+          View plan <ArrowRight size={16} />
+        </span>
       </div>
     </ClickableTile>
   );
@@ -206,6 +196,8 @@ function Dashboard() {
   const [isRemovingDuplicates, setIsRemovingDuplicates] = useState(false);
   const [duplicateResult, setDuplicateResult] = useState<{ removed: number } | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [isQuickModeOpen, setIsQuickModeOpen] = useState(false);
+  const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const refreshedCoverPlanIdsRef = useRef<Set<string>>(new Set());
   const enrichingCoverPlanIdRef = useRef<string | null>(null);
   const examplePlansMigratedRef = useRef(false);
@@ -286,8 +278,9 @@ function Dashboard() {
     (async () => {
       try {
         const fullPlan = await getTripPlan(planId);
-        let updated = false;
+        let updatedPlan = fullPlan;
         for (const day of fullPlan.days ?? []) {
+          let didUpdate = false;
           for (const loc of day.locations ?? []) {
             if (loc.image?.trim()) continue;
             const name = loc.name?.trim();
@@ -303,12 +296,29 @@ function Dashboard() {
               ...(enriched.description && { description: enriched.description }),
               ...(enriched.wikipediaUrl && { wikipediaUrl: enriched.wikipediaUrl }),
             });
-            updated = true;
+            // Apply the image update to the in-memory plan so refreshPlanCover skips getTripPlan
+            updatedPlan = {
+              ...fullPlan,
+              days: fullPlan.days?.map((d) =>
+                d.id !== day.id ? d : {
+                  ...d,
+                  locations: d.locations.map((l) =>
+                    l.id !== loc.id ? l : {
+                      ...l,
+                      image: enriched.image,
+                      imageAttribution: enriched.imageAttribution,
+                      wikidataId: qId,
+                    }
+                  ),
+                }
+              ),
+            };
+            didUpdate = true;
             break;
           }
-          if (updated) break;
+          if (didUpdate) break;
         }
-        const result = await refreshPlanCover(planId);
+        const result = await refreshPlanCover(planId, updatedPlan);
         refreshedCoverPlanIdsRef.current.add(planId);
         if (result) {
           setCoverOverrides((prev) => ({ ...prev, [planId]: result }));
@@ -331,84 +341,88 @@ function Dashboard() {
   const upcomingCount = useMemo(() => plans.filter(isUpcoming).length, [plans]);
   const totalCount = plans.length;
 
+  const handleQuickModeSubmit = async (data: TripPlanFormData) => {
+    if (!user?.uid) return;
+    setIsCreatingPlan(true);
+    try {
+      const planId = await createTripPlan(user.uid, {
+        title: data.title,
+        description: data.description,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        isPublic: false,
+        mapStyle: 'minimal',
+      });
+      setIsQuickModeOpen(false);
+      navigate(`/plan/${planId}`);
+    } finally {
+      setIsCreatingPlan(false);
+    }
+  };
+
   if (!user) return null;
 
   return (
     <AppLayout showHeader={false} showSidebar={false}>
-      <div className="dashboard-layout">
-        <aside className="dashboard-sidebar" aria-label="Dashboard overview">
-          <div className="dashboard-sidebar__top">
-            <h1 className="dashboard-sidebar__heading">
-              Your travel itinerary hub.
-            </h1>
-            <p className="dashboard-sidebar__description">
-              Access custom trip plans, locations, transport links, and recommendations for your trips.
-            </p>
-            <Button
-              kind="primary"
-              renderIcon={Add}
-              onClick={() => navigate('/plan/new')}
-              className="dashboard-sidebar__button"
-            >
-              New Itinerary
-            </Button>
-            <div className="dashboard-sidebar__stats">
-              <div className="dashboard-sidebar__stat">
-                <span className="dashboard-sidebar__stat-label">(Upcoming)</span>
-                <span className="dashboard-sidebar__stat-value">{upcomingCount}</span>
-              </div>
-              <div className="dashboard-sidebar__stat">
-                <span className="dashboard-sidebar__stat-label">(Trip plans)</span>
-                <span className="dashboard-sidebar__stat-value">{totalCount}</span>
-              </div>
-            </div>
-            {totalCount > 10 && (
-              <Button
-                kind="secondary"
-                size="sm"
-                disabled={isRemovingDuplicates}
-                onClick={async () => {
-                  if (!user?.uid || !window.confirm('Remove duplicate plans? For each duplicate title only the oldest plan will be kept. This cannot be undone.')) return;
-                  setIsRemovingDuplicates(true);
-                  setDuplicateResult(null);
-                  setDuplicateError(null);
-                  try {
-                    const removed = await deleteDuplicatePlans(user.uid);
-                    setDuplicateResult({ removed });
-                    await loadPlans();
-                  } catch (err: unknown) {
-                    setDuplicateError(err instanceof Error ? err.message : 'Failed to remove duplicates');
-                  } finally {
-                    setIsRemovingDuplicates(false);
-                  }
-                }}
-                className="dashboard-sidebar__remove-duplicates"
-              >
-                {isRemovingDuplicates ? 'Removing…' : 'Remove duplicate plans'}
-              </Button>
-            )}
-          </div>
-          <div className="dashboard-sidebar__spacer" aria-hidden="true" />
-          <Button
-            kind="ghost"
-            size="sm"
-            renderIcon={Logout}
-            iconDescription="Sign out"
-            onClick={async () => {
-              try {
-                await signOut();
-                navigate('/login');
-              } catch (e) {
-                console.error('Sign out error:', e);
-              }
-            }}
-            className="dashboard-sidebar__signout"
-          >
-            Sign out
-          </Button>
-        </aside>
+      <div className="dashboard-layout dashboard-layout--with-wizard">
+        {/* Quick mode modal */}
+        <TripPlanFormModal
+          open={isQuickModeOpen}
+          onClose={() => setIsQuickModeOpen(false)}
+          onSubmit={handleQuickModeSubmit}
+          isSubmitting={isCreatingPlan}
+        />
 
         <div className="dashboard-main">
+          {/* Header band */}
+          <div className="dashboard-header">
+            <div className="dashboard-header__left">
+              <h1 className="dashboard-header__title">Your trips</h1>
+              <div className="dashboard-header__stats">
+                <span className="dashboard-header__stat">{totalCount} {totalCount === 1 ? 'plan' : 'plans'}</span>
+                {upcomingCount > 0 && (
+                  <span className="dashboard-header__stat dashboard-header__stat--accent">
+                    {upcomingCount} upcoming
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="dashboard-header__actions">
+              {totalCount > 10 && (
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  disabled={isRemovingDuplicates}
+                  onClick={async () => {
+                    if (!user?.uid || !window.confirm('Remove duplicate plans? For each duplicate title only the oldest plan will be kept. This cannot be undone.')) return;
+                    setIsRemovingDuplicates(true);
+                    setDuplicateResult(null);
+                    setDuplicateError(null);
+                    try {
+                      const removed = await deleteDuplicatePlans(user.uid);
+                      setDuplicateResult({ removed });
+                      await loadPlans();
+                    } catch (err: unknown) {
+                      setDuplicateError(err instanceof Error ? err.message : 'Failed to remove duplicates');
+                    } finally {
+                      setIsRemovingDuplicates(false);
+                    }
+                  }}
+                >
+                  {isRemovingDuplicates ? 'Removing…' : 'Remove duplicates'}
+                </Button>
+              )}
+              <Button
+                kind="primary"
+                renderIcon={Add}
+                onClick={() => setIsQuickModeOpen(true)}
+              >
+                New Itinerary
+              </Button>
+            </div>
+          </div>
+
+          {/* Notifications */}
           {error && (
             <InlineNotification
               kind="error"
@@ -457,6 +471,30 @@ function Dashboard() {
             coverOverrides={coverOverrides}
             onPlanClick={(plan) => navigate(`/plan/${plan.id}`)}
           />
+
+          <div className="dashboard-footer">
+            <Button
+              kind="ghost"
+              size="sm"
+              renderIcon={Logout}
+              iconDescription="Sign out"
+              onClick={async () => {
+                try {
+                  await signOut();
+                  navigate('/login');
+                } catch (e) {
+                  console.error('Sign out error:', e);
+                }
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+        </div>
+
+        {/* Wizard panel */}
+        <div className="dashboard-wizard-panel">
+          <DashboardWizard onQuickMode={() => setIsQuickModeOpen(true)} />
         </div>
       </div>
     </AppLayout>

@@ -1,6 +1,7 @@
 import { MapContainer, TileLayer, useMap, Marker, Popup } from 'react-leaflet';
 import { useEffect, useMemo, useRef, memo } from 'react';
 import L from 'leaflet';
+import { Button } from '@carbon/react';
 import 'leaflet/dist/leaflet.css';
 import { Location, Day } from '../../types';
 import LocationMarker from './LocationMarker';
@@ -47,11 +48,8 @@ function SearchMarkerWithPopup({
   const icon = useMemo(() => L.divIcon({
     className: 'search-marker',
     html: `
-      <div style="
-        position: relative;
-        width: 24px;
-        height: 24px;
-      ">
+      <div style="position: relative; width: 24px; height: 24px;">
+        <div class="search-marker-pulse"></div>
         <div style="
           position: absolute;
           top: 50%;
@@ -59,29 +57,13 @@ function SearchMarkerWithPopup({
           transform: translate(-50%, -50%);
           width: 16px;
           height: 16px;
-          background-color: #0f62fe;
+          background-color: var(--cds-focus, #0f62fe);
           border-radius: 50%;
-          border: 3px solid #ffffff;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        "></div>
-        <div style="
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 40px;
-          height: 40px;
-          background-color: rgba(15, 98, 254, 0.3);
-          border-radius: 50%;
-          animation: pulse 1.5s ease-out infinite;
+          border: 3px solid var(--cds-layer-01, #ffffff);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+          z-index: 1;
         "></div>
       </div>
-      <style>
-        @keyframes pulse {
-          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
-          100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
-        }
-      </style>
     `,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
@@ -94,9 +76,9 @@ function SearchMarkerWithPopup({
       icon={icon}
     >
       <Popup>
-        <div style={{ 
+        <div style={{
           padding: '0.5rem',
-          fontFamily: "'IBM Plex Sans', sans-serif",
+          fontFamily: "'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif",
           minWidth: '200px',
           maxWidth: '280px',
         }}>
@@ -109,76 +91,58 @@ function SearchMarkerWithPopup({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  style={{ fontSize: 10, color: '#6f6f6f', display: 'block', marginTop: 2 }}
+                  className="search-popup-attribution"
                 >
                   {imageAttribution.author ? `© ${imageAttribution.author}` : 'Source'}
                 </a>
               )}
             </div>
           )}
-          <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+          <div style={{ fontWeight: 600, marginBottom: '0.25rem', fontSize: '14px', color: 'var(--cds-text-primary, #161616)' }}>
             {name}
           </div>
           {description && (
-            <p style={{ 
-              fontSize: '12px', 
-              color: '#525252', 
-              lineHeight: 1.35,
-              margin: '0 0 0.25rem 0',
-              display: '-webkit-box',
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}>
+            <p className="search-popup-description">
               {description.length > 200 ? `${description.slice(0, 200).trim()}…` : description}
             </p>
           )}
           {openingHours && (
-            <p style={{ fontSize: '12px', color: '#525252', margin: '0 0 0.25rem 0' }}>
-              🕐 {openingHours}
-            </p>
+            <p className="search-popup-hours">🕐 {openingHours}</p>
           )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            {website && (
-              <a
-                href={website.startsWith('http') ? website : `https://${website}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                style={{ fontSize: '12px', color: '#0f62fe', textDecoration: 'none', fontWeight: 500 }}
-              >
-                Website →
-              </a>
-            )}
-            {wikipediaUrl && (
-              <a
-                href={wikipediaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                style={{ fontSize: '12px', color: '#0f62fe', textDecoration: 'none', fontWeight: 500 }}
-              >
-                Wikipedia →
-              </a>
-            )}
-          </div>
+          {(website || wikipediaUrl) && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              {website && (
+                <a
+                  href={website.startsWith('http') ? website : `https://${website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="search-popup-link"
+                >
+                  Website →
+                </a>
+              )}
+              {wikipediaUrl && (
+                <a
+                  href={wikipediaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="search-popup-link"
+                >
+                  Wikipedia →
+                </a>
+              )}
+            </div>
+          )}
           {onAddToTrip && (
-            <button
-              type="button"
+            <Button
+              kind="primary"
+              size="sm"
               onClick={() => onAddToTrip(lat, lng, name)}
-              style={{
-                padding: '0.375rem 0.75rem',
-                fontSize: '12px',
-                fontWeight: 500,
-                color: '#fff',
-                backgroundColor: '#0f62fe',
-                border: 'none',
-                borderRadius: '2px',
-                cursor: 'pointer',
-              }}
             >
               Add to trip
-            </button>
+            </Button>
           )}
         </div>
       </Popup>
@@ -340,16 +304,6 @@ function MapView({
   onSearchMarkerAdd,
   onBoundsChange,
 }: MapViewProps) {
-  // #region agent log
-  const mapViewRenderCountRef = useRef(0);
-  const mapViewMountRef = useRef(0);
-  mapViewRenderCountRef.current += 1;
-  if (mapViewMountRef.current === 0) {
-    mapViewMountRef.current = 1;
-    fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'aa31bd'},body:JSON.stringify({sessionId:'aa31bd',location:'MapView.tsx:mount',message:'MapView MOUNT',data:{},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  }
-  fetch('http://127.0.0.1:7242/ingest/bb239023-cde3-46c7-be09-5a71c6644f5c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'aa31bd'},body:JSON.stringify({sessionId:'aa31bd',location:'MapView.tsx:render',message:'MapView render',data:{renderCount:mapViewRenderCountRef.current,locationsLen:locations?.length,daysLen:days?.length},timestamp:Date.now(),hypothesisId:'H1,H4'})}).catch(()=>{});
-  // #endregion
   // Validate locations array
   const validLocations = Array.isArray(locations) ? locations.filter(loc => 
     loc && 
