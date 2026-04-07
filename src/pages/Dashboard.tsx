@@ -216,6 +216,8 @@ function Dashboard() {
       })
       .catch((err) => {
         console.error('[Dashboard] Auto-seed example plans:', err);
+        // Load whatever was created before the error
+        loadPlans();
         examplePlansSeededRef.current = false;
         seededUserIds.delete(user.uid);
       });

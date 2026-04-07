@@ -65,7 +65,11 @@ async function createPlanWithDaysAndLocations(
       });
     }
   }
-  await refreshPlanCover(planId);
+  try {
+    await refreshPlanCover(planId);
+  } catch {
+    // Cover update is non-critical; plan is already created
+  }
   return planId;
 }
 
