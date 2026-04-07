@@ -206,7 +206,7 @@ function Dashboard() {
 
   // Auto-seed example plans for any user who has no plans yet (one-time only per session)
   useEffect(() => {
-    if (!user?.uid || loading || plans.length > 0 || examplePlansSeededRef.current) return;
+    if (!user?.uid || loading || plans.length >= 6 || examplePlansSeededRef.current) return;
     if (seededUserIds.has(user.uid)) return; // Already seeded this user (e.g. after remount) – never seed again
     seededUserIds.add(user.uid);
     examplePlansSeededRef.current = true;

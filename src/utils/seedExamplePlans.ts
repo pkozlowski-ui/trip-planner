@@ -81,14 +81,24 @@ const BASE_DATE = new Date('2025-05-01');
  */
 export async function createExamplePlans(userId: string): Promise<string[]> {
   const existing = await getTripPlans(userId);
-  if (existing.length > 0) {
-    return []; // User already has plans – do not seed again
+  if (existing.length >= 6) {
+    return []; // All 6 example plans already seeded
   }
+  const existingTitles = new Set(existing.map(p => p.title));
   const ids: string[] = [];
 
+  /** Skips if title already exists; catches errors so one failure doesn't abort the rest. */
+  const tryCreate = async (title: string, fn: () => Promise<string>) => {
+    if (existingTitles.has(title)) return;
+    try {
+      ids.push(await fn());
+    } catch (e) {
+      console.warn(`[seed] Plan "${title}" failed – skipping:`, e);
+    }
+  };
+
   // 1. Rome: classic highlights (3 days)
-  ids.push(
-    await createPlanWithDaysAndLocations(
+  await tryCreate('Rome: classic highlights', () => createPlanWithDaysAndLocations(
       userId,
       'Rome: classic highlights',
       'Classic Rome landmarks (sample data).',
@@ -173,8 +183,7 @@ export async function createExamplePlans(userId: string): Promise<string[]> {
 
   // 2. Poznań: food and sights (2 days)
   const poznanStart = new Date(BASE_DATE.getTime() + 7 * 24 * 60 * 60 * 1000);
-  ids.push(
-    await createPlanWithDaysAndLocations(
+  await tryCreate('Poznań: food and sights', () => createPlanWithDaysAndLocations(
       userId,
       'Poznań: food and sights',
       'Sights and recommended restaurants in Poznań (sample data).',
@@ -244,8 +253,7 @@ export async function createExamplePlans(userId: string): Promise<string[]> {
 
   // 3. Berlin music trip (3 days)
   const berlinStart = new Date(BASE_DATE.getTime() + 14 * 24 * 60 * 60 * 1000);
-  ids.push(
-    await createPlanWithDaysAndLocations(
+  await tryCreate('Berlin music trip', () => createPlanWithDaysAndLocations(
       userId,
       'Berlin music trip',
       'Music and culture spots in Berlin (sample data).',
@@ -326,8 +334,7 @@ export async function createExamplePlans(userId: string): Promise<string[]> {
 
   // 4. Tokyo photo trip (4 days)
   const tokyoStart = new Date(BASE_DATE.getTime() + 21 * 24 * 60 * 60 * 1000);
-  ids.push(
-    await createPlanWithDaysAndLocations(
+  await tryCreate('Tokyo photo trip', () => createPlanWithDaysAndLocations(
       userId,
       'Tokyo photo trip',
       'Best photo spots in Tokyo (sample data).',
@@ -411,8 +418,7 @@ export async function createExamplePlans(userId: string): Promise<string[]> {
 
   // 5. Lake Garda (3 days)
   const gardaStart = new Date(BASE_DATE.getTime() + 28 * 24 * 60 * 60 * 1000);
-  ids.push(
-    await createPlanWithDaysAndLocations(
+  await tryCreate('Lake Garda', () => createPlanWithDaysAndLocations(
       userId,
       'Lake Garda',
       'Sirmione, Riva, Malcesine and surroundings (sample data).',
@@ -484,8 +490,7 @@ export async function createExamplePlans(userId: string): Promise<string[]> {
 
   // 6. Prague (3 days)
   const prahaStart = new Date(BASE_DATE.getTime() + 35 * 24 * 60 * 60 * 1000);
-  ids.push(
-    await createPlanWithDaysAndLocations(
+  await tryCreate('Prague', () => createPlanWithDaysAndLocations(
       userId,
       'Prague',
       'Prague Castle, Charles Bridge, Old Town (sample data).',
