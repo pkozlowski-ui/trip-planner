@@ -472,9 +472,13 @@ export async function refreshPlanCover(planId: string, existingPlan?: TripPlan):
   const plan = existingPlan ?? await getTripPlan(planId);
   const result = pickCoverImageFromPlan(plan);
   const planRef = doc(db, 'tripPlans', planId);
+  // Also sync computed summary fields so getTripPlans() returns accurate stats
   await updateDoc(planRef, {
     coverImage: result?.url ?? null,
     coverImageAttribution: result?.attribution ?? null,
+    totalDays: plan.totalDays,
+    totalPoints: plan.totalPoints,
+    totalDistance: plan.totalDistance,
     updatedAt: serverTimestamp(),
   });
   return result;

@@ -265,7 +265,6 @@ function Dashboard() {
   useEffect(() => {
     const planToEnrich = plans.find(
       (p) =>
-        p.totalPoints > 0 &&
         !(p.coverImage && p.coverImage.trim()) &&
         !coverOverrides[p.id] &&
         !refreshedCoverPlanIdsRef.current.has(p.id) &&
