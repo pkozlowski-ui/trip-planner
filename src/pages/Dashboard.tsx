@@ -204,10 +204,9 @@ function Dashboard() {
   const examplePlanLocationsMigratedRef = useRef(false);
   const examplePlansSeededRef = useRef(false);
 
-  // Auto-seed 6 example plans for piotrekkoz@gmail.com when they have no plans (one-time only)
+  // Auto-seed example plans for any user who has no plans yet (one-time only per session)
   useEffect(() => {
-    if (!user?.uid || !user?.email || loading || plans.length > 0 || examplePlansSeededRef.current) return;
-    if (user.email !== 'piotrekkoz@gmail.com') return;
+    if (!user?.uid || loading || plans.length > 0 || examplePlansSeededRef.current) return;
     if (seededUserIds.has(user.uid)) return; // Already seeded this user (e.g. after remount) – never seed again
     seededUserIds.add(user.uid);
     examplePlansSeededRef.current = true;
@@ -220,7 +219,7 @@ function Dashboard() {
         examplePlansSeededRef.current = false;
         seededUserIds.delete(user.uid);
       });
-  }, [user?.uid, user?.email, loading, plans.length, loadPlans]);
+  }, [user?.uid, loading, plans.length, loadPlans]);
 
   useEffect(() => {
     if (user) {
