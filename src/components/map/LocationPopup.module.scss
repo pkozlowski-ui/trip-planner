@@ -45,12 +45,13 @@
 }
 
 .attributionLink {
-  color: var(--cds-link-primary, #0f62fe);
+  color: #0043ce;
   margin-left: $spacing-02;
   text-decoration: none;
 
   &:hover {
     text-decoration: underline;
+    color: #002d9c;
   }
 }
 

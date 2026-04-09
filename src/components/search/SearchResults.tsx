@@ -244,7 +244,7 @@ function SearchResults({
   return (
     <div
       ref={listRef}
-      role="listbox"
+      role="list"
       aria-label="Search results"
       className="search-results"
     >
@@ -263,9 +263,8 @@ function SearchResults({
           <div
             key={result.place_id}
             ref={el => itemRefs.current[index] = el}
-            role="option"
-            aria-selected={isFocused}
-            tabIndex={-1}
+            role="listitem"
+            aria-current={isFocused ? 'true' : undefined}
             className={`search-results__row ${isFocused ? 'search-results__row--focused' : ''}`}
             onMouseEnter={() => {
               setFocusedIndex(index);
@@ -303,7 +302,7 @@ function SearchResults({
                     padding: '0.125rem 0.5rem',
                     borderRadius: '2px',
                     fontWeight: 500,
-                    color: 'var(--cds-text-primary)',
+                    color: '#161616',
                   }}
                 >
                   {categoryName}
@@ -316,7 +315,7 @@ function SearchResults({
                       padding: '0.125rem 0.5rem',
                       borderRadius: '2px',
                       fontWeight: 500,
-                      color: 'var(--cds-text-primary)',
+                      color: '#161616',
                     }}
                   >
                     {cuisine}
@@ -333,7 +332,7 @@ function SearchResults({
                       padding: '0.125rem 0.5rem',
                       borderRadius: '2px',
                       fontWeight: 500,
-                      color: 'var(--cds-text-primary)',
+                      color: '#161616',
                     }}
                   >
                     <Events size={12} />
