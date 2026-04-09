@@ -303,6 +303,7 @@ function SearchResults({
                     padding: '0.125rem 0.5rem',
                     borderRadius: '2px',
                     fontWeight: 500,
+                    color: 'var(--cds-text-primary)',
                   }}
                 >
                   {categoryName}
@@ -315,7 +316,7 @@ function SearchResults({
                       padding: '0.125rem 0.5rem',
                       borderRadius: '2px',
                       fontWeight: 500,
-                      color: 'var(--cds-link-primary)',
+                      color: 'var(--cds-text-primary)',
                     }}
                   >
                     {cuisine}

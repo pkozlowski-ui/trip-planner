@@ -97,7 +97,7 @@ export const ValidationTest: Story = {
     const canvas = within(canvasElement);
     const nameInput = canvas.getByLabelText(/Location Name/i);
     await expect(nameInput).toHaveValue('');
-    const addButton = canvas.getByText('Add Location');
+    const addButton = canvas.getByRole('button', { name: /Add Location/i });
     await expect(addButton).toBeDisabled();
   },
 };
@@ -115,7 +115,7 @@ export const TypeAndEnable: Story = {
     const nameInput = canvas.getByLabelText(/Location Name/i);
     await userEvent.type(nameInput, 'Wawel Castle');
     await expect(nameInput).toHaveValue('Wawel Castle');
-    const addButton = canvas.getByText('Add Location');
+    const addButton = canvas.getByRole('button', { name: /Add Location/i });
     await expect(addButton).toBeEnabled();
   },
 };

@@ -160,7 +160,7 @@ function ContextMenu({
               <div
                 style={{
                   fontSize: '11px',
-                  color: '#8c8c8c',
+                  color: '#525252',
                   marginTop: '0.25rem',
                   lineHeight: '1.3',
                   wordWrap: 'break-word',
