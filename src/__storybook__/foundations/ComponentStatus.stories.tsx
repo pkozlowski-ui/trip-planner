@@ -367,7 +367,7 @@ function ComponentStatusPage() {
                 borderBottom: i < BACKLOG.length - 1 ? '1px solid var(--cds-border-subtle, #e0e0e0)' : 'none',
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--cds-text-primary, #161616)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cds-text-primary, #161616)', fontFamily: 'IBM Plex Mono, monospace' }}>
                 {name}
               </span>
               <span style={{ fontSize: 12, color: 'var(--cds-text-secondary, #525252)' }}>{reason}</span>
