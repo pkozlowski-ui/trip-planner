@@ -1,0 +1,57 @@
+{/* @meta */}
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Foundations/Motion" />
+
+# Motion
+
+Motion follows IBM Carbon's motion guidelines. Transitions should feel responsive, not sluggish.
+
+## Easing
+
+| Name | Value | Usage |
+|------|-------|-------|
+| Productive | `cubic-bezier(0.2, 0, 0.38, 0.9)` | UI feedback, hover, focus, most transitions |
+| Expressive | `cubic-bezier(0.4, 0.14, 0.3, 1)` | Entrance animations, modals opening |
+
+## Duration Scale
+
+| Duration | Usage |
+|----------|-------|
+| 100ms | Micro-interactions (color change on hover) |
+| 150ms | Default transitions (cards, inputs, buttons) |
+| 200ms | Standard UI transitions (opacity fade, transform) |
+| 300ms | Complex transitions (modal enter/exit, slide) |
+| 1200ms+ | Looping animations only (typing dots, pulse) |
+
+## Patterns Used
+
+### Card hover
+```css
+transition: box-shadow 150ms cubic-bezier(0.2, 0, 0.38, 0.9),
+            border-color 150ms cubic-bezier(0.2, 0, 0.38, 0.9);
+```
+
+### Image fade-in
+```css
+transition: opacity 0.2s cubic-bezier(0.2, 0, 0.38, 0.9);
+```
+
+### Map marker scale
+```css
+transition: transform 150ms cubic-bezier(0.2, 0, 0.38, 0.9),
+            box-shadow 150ms;
+```
+
+### Typing indicator (wizard)
+```css
+animation: wizardTypingBounce 1.2s infinite ease-in-out;
+```
+
+## Rules
+
+- Every interactive element must have a transition on hover/focus (min 100ms)
+- Never exceed 300ms for UI feedback transitions
+- Use `cubic-bezier(0.2, 0, 0.38, 0.9)` as the default easing
+- Reserve `ease-in-out` for looping/decorative animations only
+- Respect `prefers-reduced-motion` -- wrap decorative animations in a media query

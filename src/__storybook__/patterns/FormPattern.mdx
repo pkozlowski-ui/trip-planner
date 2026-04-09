@@ -1,0 +1,62 @@
+{/* @meta */}
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Patterns/Form Pattern" />
+
+# Form Pattern
+
+How to build forms in Trip Planner using Carbon components.
+
+## Structure
+
+```tsx
+<Modal open={open} modalHeading="Title" ...>
+  <Form onSubmit={handleSubmit}>
+    <FormGroup legendText="Section Name">
+      <Stack gap={5}>
+        <TextInput id="..." labelText="Label *" ... />
+        <Select id="..." labelText="Label" ... />
+        <TextArea id="..." labelText="Label" ... />
+      </Stack>
+    </FormGroup>
+  </Form>
+</Modal>
+```
+
+## Rules
+
+1. **Every input has a `labelText`** -- never skip it, even if the label is visually hidden
+2. **Required fields** use `*` in label text and the `required` prop
+3. **Group related fields** with `FormGroup` and a `legendText`
+4. **Stack with gap={5}** (1rem) between fields within a group
+5. **Disable all inputs** when `isSubmitting` is true
+6. **Primary button text** changes during submission: "Create Plan" -> "Creating..."
+7. **Primary button disabled** when form is invalid OR submitting
+
+## Validation
+
+- Validate on submit, not on blur (keeps UX clean)
+- Use `invalid` and `invalidText` props on the offending input
+- Prevent submission: `primaryButtonDisabled={isSubmitting || !isValid}`
+
+## Loading State
+
+Show `<Loading withOverlay={false} small />` centered below the form during async submit.
+
+## Examples in the App
+
+| Modal | Fields | FormGroup |
+|-------|--------|-----------|
+| TripPlanFormModal | title, description, dates | "Basic Information", "Dates" |
+| TransportFormModal | type, notes | "Transport Information" |
+| LocationFormModal | name, category grid, description | Single Stack (no FormGroup) |
+
+## Do / Don't
+
+**Do**: Disable the entire form during submission to prevent double-submit.
+
+**Don't**: Show inline validation errors on every keystroke -- validate only on submit or blur.
+
+**Do**: Reset form state when modal closes (`useEffect` on `open`).
+
+**Don't**: Leave stale data in form when re-opening a modal for a different entity.

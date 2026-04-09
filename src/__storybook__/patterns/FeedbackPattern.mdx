@@ -1,0 +1,58 @@
+{/* @meta */}
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Patterns/Feedback Pattern" />
+
+# Feedback Pattern
+
+Every user action should produce visible feedback. This pattern defines when to use each feedback mechanism.
+
+## Notification Hierarchy
+
+| Kind | Duration | Use Case | Example |
+|------|----------|----------|---------|
+| **Error** | Stays until dismissed | Failed operations | "Unable to save location" |
+| **Warning** | 5 seconds | Non-critical issues | "Session expiring soon" |
+| **Success** | 3 seconds | Completed actions | "Plan created successfully" |
+| **Info** | 4 seconds | Guidance / tips | "Click map to add location" |
+
+## When to Use What
+
+| Scenario | Mechanism |
+|----------|-----------|
+| Form submission error | `InlineNotification` (kind="error") above form |
+| Network/auth failure | `InlineNotification` in the page header area |
+| Action completed | `ToastNotification` (auto-dismiss) |
+| Loading data | `<Loading withOverlay={false} />` |
+| Submitting form | Disabled button text ("Saving...") + `<Loading small />` |
+| Empty collection | Empty state component with CTA |
+| Deleting item | `window.confirm()` then `ToastNotification` on success |
+
+## Loading States
+
+**Never** show plain text "Loading...". Always use Carbon's `<Loading>` component:
+
+| Context | Pattern |
+|---------|---------|
+| Full page | Centered `<Loading />` (default size) |
+| Inline / beside text | `<Loading small />` + label text |
+| Button | Change text to "Saving..." and `disabled` |
+| Image | `<SkeletonPlaceholder />` with fade-in on load |
+
+## Error Messages
+
+**Bad**: "Error occurred" or "Something went wrong"
+
+**Good**: "Unable to save location. Please check your connection and try again."
+
+Template: **"Unable to [action]. [Reason or suggestion]."**
+
+## Do / Don't
+
+**Do**: Show loading feedback immediately when an async action starts.
+
+**Don't**: Silently swallow errors in try/catch blocks.
+
+**Do**: Use high-contrast (default) for error notifications.
+
+**Don't**: Use high-contrast for success/info -- use `lowContrast` for those.

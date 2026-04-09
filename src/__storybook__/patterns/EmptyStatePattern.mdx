@@ -1,0 +1,77 @@
+{/* @meta */}
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Patterns/Empty State Pattern" />
+
+# Empty State Pattern
+
+How to design helpful empty states that guide users to their next action.
+
+## Structure
+
+```
+┌──────────────────────────────────────┐
+│                                      │
+│          [Icon or Illustration]      │
+│                                      │
+│        Title (what's empty)          │
+│     Subtitle (what to do next)       │
+│                                      │
+│         [ Primary CTA Button ]       │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+## Empty States in the App
+
+| Context | Title | Subtitle | CTA |
+|---------|-------|----------|-----|
+| Dashboard (no plans) | "No trip plans yet" | "Create your first trip plan to get started" | "Create Plan" button |
+| Day section (no locations) | "No locations added" | -- | Implied: drag or click map |
+| Search (no results) | _(renders null)_ | -- | -- |
+| Chat (no messages) | Welcome message | Suggested quick actions | Chip buttons |
+
+## Styling
+
+```scss
+.dashboard-empty-state {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 3rem 2rem;
+  text-align: center;
+
+  &__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__subtitle {
+    font-size: 0.875rem;
+    color: $text-secondary;
+  }
+}
+```
+
+## Rules
+
+1. **Always provide a CTA** when the user can take action to fill the empty state
+2. **Title** explains what is missing ("No trip plans yet")
+3. **Subtitle** explains what to do ("Create your first trip plan to get started")
+4. **Center vertically** in the available space with generous padding
+5. **Use $text-secondary** for the subtitle (not primary -- it's guidance, not primary content)
+6. **Don't show errors as empty states** -- empty means zero data, not failed to load
+
+## Do / Don't
+
+**Do**: Make the empty state feel inviting, not like an error.
+
+**Don't**: Leave a blank white space with no explanation.
+
+**Do**: Match the CTA to the most common next action.
+
+**Don't**: Overwhelm with too many options in the empty state.

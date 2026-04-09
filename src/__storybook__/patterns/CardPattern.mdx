@@ -1,0 +1,60 @@
+{/* @meta */}
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Patterns/Card Pattern" />
+
+# Card Pattern
+
+Guidelines for building cards using Carbon `Tile` with app-specific styling.
+
+## Anatomy
+
+```
+┌────────────────────────────────┐
+│ [Thumb/Icon] Title     [⋮ Menu]│  <- title row
+│ category · ⏰ hours · ⭐ 4.8    │  <- meta stack
+└────────────────────────────────┘
+```
+
+## Styling Strategy
+
+Cards use **global CSS classes** in `carbon-overrides.scss`, not SCSS modules. This is intentional -- cards appear in multiple contexts (sidebar, search, drag preview) and need consistent styling everywhere.
+
+## Location Card
+
+| Element | Class | Token |
+|---------|-------|-------|
+| Container | `.location-card` | `--cds-layer-02`, `--cds-border-subtle` |
+| Highlighted | `.location-card--highlighted` | `--cds-layer-selected`, `--cds-interactive` |
+| Title | `.location-card__title` | `--cds-text-primary`, 14px, 600 |
+| Meta | `.location-card__meta-stack` | `--cds-text-secondary`, 12px |
+| Thumbnail | `.location-card__thumb` | 48x48, border-radius 4px |
+| Icon fallback | `.location-card__icon-box` | `--cds-layer-01`, `--cds-text-secondary` |
+
+## Transport Card
+
+Compact inline card for transport between locations:
+
+| Element | Class | Token |
+|---------|-------|-------|
+| Container | `.transport-card` | `--cds-layer-02`, flex row |
+| Label | `.transport-card__label` | `--cds-text-primary`, 12px, 500 |
+| Meta | `.transport-card__meta` | `--cds-text-secondary`, 11px |
+
+## Rules
+
+1. **Hover** transitions use `150ms cubic-bezier(0.2, 0, 0.38, 0.9)`
+2. **Border-radius**: 4px (consistent across all cards)
+3. **Overflow menu**: Always `size="sm"` and `flipped`
+4. **Delete action**: Always use `isDelete` and `hasDivider` on OverflowMenuItem
+5. **Confirm delete**: Always use `window.confirm()` before calling `onDelete`
+
+## Do / Don't
+
+**Do**: Show icon fallback when no image is available.
+
+**Don't**: Show a broken image or empty space.
+
+**Do**: Use `getCategoryIcon()` for consistent category icons.
+
+**Don't**: Import individual icons per component -- use the utility function.

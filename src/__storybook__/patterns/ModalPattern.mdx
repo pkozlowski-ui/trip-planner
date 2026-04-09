@@ -1,0 +1,68 @@
+{/* @meta */}
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Patterns/Modal Pattern" />
+
+# Modal Pattern
+
+When and how to use Carbon `Modal` in Trip Planner.
+
+## Sizing Guide
+
+| Size | Use Case | Example |
+|------|----------|---------|
+| `xs` | Confirmation dialogs | Delete confirmation |
+| `sm` | Simple forms (2-3 fields) | TripPlanFormModal, TransportFormModal |
+| `md` | Standard forms | General purpose |
+| `lg` | Complex forms with rich content | LocationFormModal (category grid + enrichment) |
+
+## Required Props
+
+Every modal must have:
+
+```tsx
+<Modal
+  open={isOpen}
+  onRequestClose={handleClose}
+  modalHeading="Action Title"
+  primaryButtonText="Action"
+  secondaryButtonText="Cancel"
+  primaryButtonDisabled={isSubmitting || !isValid}
+  onRequestSubmit={handleSubmit}
+  size="sm"
+>
+```
+
+## States Checklist
+
+- [ ] **Open/Close** works via `open` prop
+- [ ] **Primary button disabled** when form invalid or submitting
+- [ ] **Button text changes** during submission ("Create" -> "Creating...")
+- [ ] **Loading indicator** shown during async operations
+- [ ] **Form resets** when modal closes
+- [ ] **Escape key** closes modal (Carbon default)
+- [ ] **Focus trap** active while open (Carbon default)
+
+## Danger Modal
+
+For destructive confirmations:
+
+```tsx
+<Modal danger size="xs" modalHeading="Delete trip plan?">
+  <p>This action cannot be undone.</p>
+</Modal>
+```
+
+## Nesting
+
+TripPlanFormModal demonstrates nested modals: the main form opens a danger confirmation modal for delete. Both can be open simultaneously.
+
+## Do / Don't
+
+**Do**: Always provide both primary and secondary (Cancel) actions.
+
+**Don't**: Use a modal for passive content display -- use a panel or expandable instead.
+
+**Do**: Show a loading spinner inside the modal during submission.
+
+**Don't**: Close the modal immediately on submit -- wait for the async operation to complete, then close.
