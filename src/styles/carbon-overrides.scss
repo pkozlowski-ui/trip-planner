@@ -598,6 +598,30 @@
   gap: 1.5rem;
 }
 
+.dashboard-empty-state {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 3rem 2rem;
+  text-align: center;
+
+  &__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__subtitle {
+    margin: 0;
+    font-size: 0.875rem;
+    color: $text-secondary;
+  }
+}
+
 // ——— Dashboard with Wizard (2-column: content + wizard) ———
 .dashboard-layout--with-wizard {
   // Nothing extra — layout already handled by flex on .dashboard-layout

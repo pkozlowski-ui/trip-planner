@@ -9,12 +9,13 @@ import {
   createLocation,
 } from '../../services/firebase/firestore';
 import { searchLocations } from '../../services/geocoding';
-import { buildItineraryStops } from '../../utils/destinationKnowledge';
+import { buildItineraryStops, selectAttractionsForStop } from '../../utils/destinationKnowledge';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type WizardStep =
-  | 'destination'
+  | 'region'       // step 1 — broad area (Europe / Asia / …)
+  | 'destination'  // step 2 — specific country / sub-region
   | 'duration'
   | 'vibe'
   | 'group'
@@ -29,6 +30,7 @@ interface WizardMessage {
 }
 
 interface WizardAnswers {
+  region: string;
   destination: string;
   days: number;
   vibe: string[];
@@ -41,13 +43,71 @@ type DashboardWizardProps = Record<string, never>;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const DESTINATION_CHIPS = [
-  'Southeast Asia',
-  'Japan',
-  'Balkans',
-  'Morocco',
-  'South America',
-  'Surprise me',
+/** Step 1 — broad world regions shown on first screen */
+interface RegionChip {
+  label: string;
+  /** Internal key; matches knowledge-base keys where applicable */
+  key: string;
+}
+
+const REGION_CHIPS: RegionChip[] = [
+  { label: '🌏 Asia',                key: 'asia' },
+  { label: '🌍 Europe',              key: 'europe' },
+  { label: '🌎 Latin America',       key: 'latin america' },
+  { label: '🌍 Africa & M.East',     key: 'africa & middle east' },
+  { label: '🌊 Southeast Asia',      key: 'southeast asia' },
+  { label: '✨ Surprise me',         key: 'surprise' },
+];
+
+/** Step 2 — specific destinations per region; keys map directly to KB entries */
+const REGION_DESTINATIONS: Record<string, RegionChip[]> = {
+  'asia': [
+    { label: 'Japan',      key: 'japan' },
+    { label: 'Vietnam',    key: 'vietnam' },
+    { label: 'Thailand',   key: 'thailand' },
+    { label: 'Indonesia',  key: 'indonesia' },
+    { label: 'India',      key: 'india' },
+    { label: 'Nepal',      key: 'nepal' },
+  ],
+  'europe': [
+    { label: 'Italy',      key: 'italy' },
+    { label: 'Spain',      key: 'spain' },
+    { label: 'Portugal',   key: 'portugal' },
+    { label: 'Greece',     key: 'greece' },
+    { label: 'Balkans',    key: 'balkans' },
+  ],
+  'latin america': [
+    { label: 'Colombia',          key: 'colombia' },
+    { label: 'Peru',              key: 'peru' },
+    { label: 'South America mix', key: 'south america' },
+  ],
+  'africa & middle east': [
+    { label: 'Morocco', key: 'morocco' },
+  ],
+};
+
+/**
+ * Regions that map directly to a knowledge-base destination and skip step 2.
+ * The key is also the KB key used in generation.
+ */
+const DIRECT_KB_REGIONS: Record<string, string> = {
+  'southeast asia': 'Southeast Asia',
+};
+
+/** Pool for "Surprise me" — always has a multi-city KB route */
+const SURPRISE_DESTINATIONS: RegionChip[] = [
+  { label: 'Japan',        key: 'japan' },
+  { label: 'Vietnam',      key: 'vietnam' },
+  { label: 'Portugal',     key: 'portugal' },
+  { label: 'Colombia',     key: 'colombia' },
+  { label: 'Morocco',      key: 'morocco' },
+  { label: 'Greece',       key: 'greece' },
+  { label: 'Nepal',        key: 'nepal' },
+  { label: 'Indonesia',    key: 'indonesia' },
+  { label: 'Peru',         key: 'peru' },
+  { label: 'Spain',        key: 'spain' },
+  { label: 'Italy',        key: 'italy' },
+  { label: 'Thailand',     key: 'thailand' },
 ];
 
 const DURATION_CHIPS = ['7 days', '10 days', '14 days', '21 days', '1 month+'];
@@ -126,6 +186,20 @@ function getBotDestinationReply(destination: string): string {
   return `${destination} — sounds like a great adventure. Let's build it out.`;
 }
 
+function getBotRegionReply(regionKey: string): string {
+  const replies: Record<string, string> = {
+    'asia':
+      'Great region. Tons of variety — which country is pulling you in right now?',
+    'europe':
+      'Europe — so many options. Any particular country on your mind?',
+    'latin america':
+      'Latin America — vibrant, colourful, wildly underrated. Which part?',
+    'africa & middle east':
+      'Bold pick. Where exactly — Morocco, Egypt, Jordan, somewhere else?',
+  };
+  return replies[regionKey] ?? `${regionKey} — great call. Which part are you thinking?`;
+}
+
 function getBotDurationReply(destination: string, input: string): string {
   const lower = input.toLowerCase();
   const monthHint = Object.entries(SEASONAL_HINTS).find(([month]) =>
@@ -145,7 +219,12 @@ function getBotDurationReply(destination: string, input: string): string {
   return `Good to know. Let's figure out the vibe next.`;
 }
 
-function parseDays(input: string): number {
+/**
+ * Returns the number of days parsed from the input, or null if the input
+ * contains only a season/month name without a count — signals to stay on
+ * the duration step and ask "how many days?".
+ */
+function parseDays(input: string): number | null {
   const lower = input.toLowerCase();
 
   // Months — "1 month", "2 months", "1 month+", "miesiąc"
@@ -167,6 +246,10 @@ function parseDays(input: string): number {
   // Raw number (chip value like "21 days" already handled above; fallback for bare "21")
   const numMatch = lower.match(/(\d+)/);
   if (numMatch) return Math.min(Math.max(parseInt(numMatch[1], 10), 1), 60);
+
+  // Season/month name without a number (e.g. "October") — ask the user for a day count
+  const isSeasonalHint = Object.keys(SEASONAL_HINTS).some((month) => lower.includes(month));
+  if (isSeasonalHint) return null;
 
   return 7;
 }
@@ -198,7 +281,7 @@ function DashboardWizard(_props: DashboardWizardProps) {
   const [messages, setMessages] = useState<WizardMessage[]>([
     { id: 'bot-0', role: 'bot', text: getBotGreeting() },
   ]);
-  const [step, setStep] = useState<WizardStep>('destination');
+  const [step, setStep] = useState<WizardStep>('region');
   const [inputValue, setInputValue] = useState('');
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -206,6 +289,7 @@ function DashboardWizard(_props: DashboardWizardProps) {
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   const [answers, setAnswers] = useState<WizardAnswers>({
+    region: '',
     destination: '',
     days: 7,
     vibe: [],
@@ -240,17 +324,71 @@ function DashboardWizard(_props: DashboardWizardProps) {
   // ── Submit an answer ────────────────────────────────────────────────────
   const submitAnswer = useCallback(
     async (userText: string, rawValue?: string) => {
-      if (!userText.trim() || isTransitioning) return;
+      if (isTransitioning) return;
 
-      const displayText = userText.trim();
+      // For the vibe step, combine chip selections with any typed freetext so
+      // both appear together in the user bubble and are stored together.
+      let displayText: string;
+      if (step === 'vibe') {
+        const typed = userText.trim();
+        const combined = [
+          ...selectedVibes,
+          ...(typed && !selectedVibes.includes(typed) ? [typed] : []),
+        ];
+        if (combined.length === 0) return; // nothing to submit
+        displayText = combined.join(', ');
+      } else {
+        if (!userText.trim()) return;
+        displayText = userText.trim();
+      }
+
       setMessages((prev) => [
         ...prev,
         { id: `user-${Date.now()}`, role: 'user', text: displayText },
       ]);
       setInputValue('');
 
+      // ── Step 1: region ───────────────────────────────────────────────────
+      if (step === 'region') {
+        const regionKey = rawValue ?? displayText.toLowerCase();
+
+        if (regionKey === 'surprise') {
+          // Pick a random destination from the curated surprise pool
+          const pick = SURPRISE_DESTINATIONS[Math.floor(Math.random() * SURPRISE_DESTINATIONS.length)];
+          setAnswers((prev) => ({ ...prev, region: 'surprise', destination: pick.key }));
+          await addBotMessage(`Picking something for you… how about ${pick.label}?`);
+          await addBotMessage(getBotDestinationReply(pick.key), 200);
+          await addBotMessage(
+            'When are you thinking of going? You can say "sometime in October", a month, or just pick a duration.',
+            200
+          );
+          setStep('duration');
+          return;
+        }
+
+        // Regions that map directly to a KB key skip step 2
+        if (DIRECT_KB_REGIONS[regionKey] !== undefined) {
+          setAnswers((prev) => ({ ...prev, region: regionKey, destination: regionKey }));
+          await addBotMessage(getBotDestinationReply(regionKey));
+          await addBotMessage(
+            'When are you thinking of going? You can say "sometime in October", a month, or just pick a duration.',
+            200
+          );
+          setStep('duration');
+          return;
+        }
+
+        // Otherwise show step 2 — specific country chips for this region
+        setAnswers((prev) => ({ ...prev, region: regionKey }));
+        await addBotMessage(getBotRegionReply(regionKey));
+        setStep('destination');
+        return;
+      }
+
+      // ── Step 2: specific destination ─────────────────────────────────────
       if (step === 'destination') {
-        const dest = rawValue || displayText;
+        // rawValue is the KB key when a chip was clicked; displayText is the human label
+        const dest = rawValue ?? displayText;
         setAnswers((prev) => ({ ...prev, destination: dest }));
         const reply = getBotDestinationReply(dest);
         await addBotMessage(reply);
@@ -261,6 +399,12 @@ function DashboardWizard(_props: DashboardWizardProps) {
         setStep('duration');
       } else if (step === 'duration') {
         const d = parseDays(displayText);
+        if (d === null) {
+          // Season-only input (e.g. "October") — give the seasonal hint but stay on this step
+          const reply = getBotDurationReply(answers.destination, displayText);
+          await addBotMessage(reply); // already ends with "How many days are you working with?"
+          return;
+        }
         setAnswers((prev) => ({ ...prev, days: d }));
         const reply = getBotDurationReply(answers.destination, displayText);
         await addBotMessage(reply);
@@ -270,7 +414,8 @@ function DashboardWizard(_props: DashboardWizardProps) {
         );
         setStep('vibe');
       } else if (step === 'vibe') {
-        const vibes = selectedVibes.length > 0 ? selectedVibes : [displayText];
+        // displayText is already the combined chips + typed text (see top of submitAnswer)
+        const vibes = displayText.split(', ').filter(Boolean);
         setAnswers((prev) => ({ ...prev, vibe: vibes }));
         setSelectedVibes([]);
         await addBotMessage(
@@ -309,7 +454,7 @@ function DashboardWizard(_props: DashboardWizardProps) {
           await addBotMessage(`${anchor} — noted. That is locked in.`);
         }
         await addBotMessage(
-          `Perfect. Give me a moment — building your ${answers.destination} skeleton…`,
+          `Perfect. Give me a moment — mapping out your ${answers.destination} journey…`,
           300
         );
         setStep('generating');
@@ -331,7 +476,13 @@ function DashboardWizard(_props: DashboardWizardProps) {
   // ── Plan generation ──────────────────────────────────────────────────────
   const startGeneration = useCallback(
     async (finalAnswers: WizardAnswers) => {
-      if (!user?.uid) return;
+      // B1: show a visible error instead of silently doing nothing
+      if (!user?.uid) {
+        setGenerationError('You need to be signed in to create a plan. Please sign in and try again.');
+        setStep('anchor');
+        return;
+      }
+
       setGenerationError(null);
       setGeneratingLines([]);
 
@@ -339,48 +490,94 @@ function DashboardWizard(_props: DashboardWizardProps) {
         setGeneratingLines((prev) => [...prev, line]);
 
       try {
-        // Safety clamp — parseDays can return low values if user typed ambiguous input (e.g. "1 week" → was incorrectly returning 1)
+        // Safety clamp
         const answers = { ...finalAnswers, days: Math.max(finalAnswers.days, 1) };
 
         // 1. Resolve stops from knowledge base (or fall back to single geocode)
         const stops = buildItineraryStops(answers.destination, answers.days);
         const useKnowledgeBase = stops.length > 0;
 
-        // 2. Geocode each stop sequentially (200ms gap to respect Nominatim rate limit)
-        appendLine(
-          useKnowledgeBase
-            ? `Found ${stops.length} cities for ${answers.destination}…`
-            : `Geocoding ${answers.destination}…`
-        );
-
-        interface GeocodedStop {
-          stopName: string;
-          startDay: number;
-          assignedDays: number;
-          lat: number;
-          lng: number;
+        if (useKnowledgeBase) {
+          appendLine(`Mapping ${stops.length} ${stops.length === 1 ? 'city' : 'cities'} for ${answers.destination}…`);
+        } else {
+          appendLine(`Locating ${answers.destination} on the map…`);
         }
 
-        const geocodedStops: GeocodedStop[] = [];
+        // 2. Create the plan document + days (do this before geocoding so the user
+        //    sees progress while we wait for Nominatim responses)
+        const title = buildPlanTitle(answers);
+        const description = buildPlanDescription(answers);
+        const planId = await createTripPlan(user.uid, {
+          title,
+          description,
+          isPublic: false,
+          mapStyle: 'minimal',
+        });
+
+        appendLine(`Creating your ${answers.days}-day itinerary…`);
+        const dayIds: string[] = [];
+        for (let i = 0; i < answers.days; i++) {
+          const id = await createDay(planId, { dayNumber: i + 1 });
+          dayIds.push(id);
+        }
+
+        // 3. Geocode and place locations
+
+        interface PlacedLocation {
+          name: string;
+          category: string;
+          lat: number;
+          lng: number;
+          dayId: string;
+          order: number;
+          notes?: string;
+        }
+
+        const placed: PlacedLocation[] = [];
 
         if (useKnowledgeBase) {
+          // Track per-day order counters
+          const dayOrderCounter: Record<string, number> = {};
+
           for (const stop of stops) {
-            const label = `${stop.name} → Day${stop.assignedDays > 1 ? `s ${stop.startDay}–${stop.startDay + stop.assignedDays - 1}` : ` ${stop.startDay}`}`;
-            appendLine(`✦ ${label}`);
-            const results = await searchLocations(stop.searchQuery).catch(() => []);
-            const geo = results[0];
-            if (geo) {
-              const lat = parseFloat(String(geo.lat));
-              const lng = parseFloat(String(geo.lon));
-              if (!isNaN(lat) && !isNaN(lng)) {
-                geocodedStops.push({ stopName: stop.name, startDay: stop.startDay, assignedDays: stop.assignedDays, lat, lng });
+            const dayLabel = stop.assignedDays > 1
+              ? `Days ${stop.startDay}–${stop.startDay + stop.assignedDays - 1}`
+              : `Day ${stop.startDay}`;
+            appendLine(`✦ ${stop.name} (${dayLabel})`);
+
+            // Select attractions matching the user's vibes + day count
+            const selected = selectAttractionsForStop(stop, answers.vibe);
+            appendLine(`  ${selected.length} spots: ${selected.slice(0, 3).map(a => a.name).join(', ')}${selected.length > 3 ? '…' : ''}`);
+
+            for (const attraction of selected) {
+              const results = await searchLocations(attraction.searchQuery).catch(() => []);
+              const geo = results[0];
+              if (geo) {
+                const lat = parseFloat(String(geo.lat));
+                const lng = parseFloat(String(geo.lon));
+                if (!isNaN(lat) && !isNaN(lng)) {
+                  const dayIndex = attraction.assignedDay - 1;
+                  const dayId = dayIds[dayIndex];
+                  if (dayId) {
+                    const order = dayOrderCounter[dayId] ?? 0;
+                    dayOrderCounter[dayId] = order + 1;
+                    placed.push({
+                      name: attraction.name,
+                      category: attraction.category,
+                      lat,
+                      lng,
+                      dayId,
+                      order,
+                    });
+                  }
+                }
               }
+              // Respect Nominatim rate limit (1 req/s)
+              await new Promise<void>((r) => setTimeout(r, 200));
             }
-            // Respect Nominatim rate limit
-            await new Promise<void>((r) => setTimeout(r, 200));
           }
         } else {
-          // Fallback — single geocode
+          // Fallback — single geocode of the destination itself
           const results = await searchLocations(answers.destination).catch(() => []);
           const geo = results[0];
           if (geo) {
@@ -391,47 +588,42 @@ function DashboardWizard(_props: DashboardWizardProps) {
                 geo.namedetails?.name ||
                 geo.display_name?.split(',')[0]?.trim() ||
                 answers.destination;
-              geocodedStops.push({ stopName: name, startDay: 1, assignedDays: answers.days, lat, lng });
+              placed.push({ name, category: 'city', lat, lng, dayId: dayIds[0], order: 0 });
+              appendLine(`Starting point: ${name}. Use the chat in the editor to add more stops.`);
             }
           }
         }
 
-        // 3. Create the plan document
-        const title = buildPlanTitle(answers);
-        const description = buildPlanDescription(answers);
-        const planId = await createTripPlan(user.uid, {
-          title,
-          description,
-          isPublic: false,
-          mapStyle: 'minimal',
-        });
-
-        // 4. Create all days sequentially to preserve order
-        appendLine(`Building ${answers.days}-day structure…`);
-        const dayIds: string[] = [];
-        for (let i = 0; i < answers.days; i++) {
-          const id = await createDay(planId, { dayNumber: i + 1 });
-          dayIds.push(id);
+        // B3: guard — don't keep an empty plan
+        if (placed.length === 0) {
+          throw new Error(
+            `Couldn't find "${answers.destination}" on the map. Try a more specific city or region name.`
+          );
         }
 
-        // 5. Add one location per geocoded stop at its first assigned day
-        for (const stop of geocodedStops) {
-          const dayIndex = stop.startDay - 1; // convert to 0-based
-          const dayId = dayIds[dayIndex];
-          if (dayId) {
-            await createLocation(planId, dayId, {
-              name: stop.stopName,
-              category: 'city',
-              coordinates: { lat: stop.lat, lng: stop.lng },
-              order: 0,
-              media: [],
-            });
-          }
+        // 4. Write all locations to Firestore
+        for (const loc of placed) {
+          await createLocation(planId, loc.dayId, {
+            name: loc.name,
+            category: loc.category as import('../../types').LocationCategory,
+            coordinates: { lat: loc.lat, lng: loc.lng },
+            order: loc.order,
+            media: [],
+            ...(loc.notes ? { notes: loc.notes } : {}),
+          });
         }
 
-        // 6. Add anchor location to the mid-point day (if provided)
+        // UX-8: show the route summary
+        if (useKnowledgeBase) {
+          const cityNames = stops.map((s) => s.name);
+          appendLine(`Route: ${cityNames.join(' → ')}`);
+          appendLine(`${placed.length} attractions placed across ${answers.days} days`);
+        }
+
+        // 5. Add anchor location to the mid-point day (if provided)
         if (answers.anchor && answers.anchor !== 'Nope, all open') {
-          appendLine(`Locking in anchor: ${answers.anchor}…`);
+          const anchorDayNumber = Math.floor(dayIds.length / 2) + 1;
+          appendLine(`Locking in anchor: ${answers.anchor} (Day ${anchorDayNumber})…`);
           const anchorGeo = await searchLocations(answers.anchor).catch(() => []);
           if (anchorGeo[0] && dayIds.length > 0) {
             const midDayId = dayIds[Math.floor(dayIds.length / 2)];
@@ -445,7 +637,7 @@ function DashboardWizard(_props: DashboardWizardProps) {
                   answers.anchor,
                 category: 'attraction',
                 coordinates: { lat: aLat, lng: aLng },
-                order: geocodedStops.length,
+                order: 99,
                 media: [],
                 notes: `Anchor: ${answers.anchor}`,
               });
@@ -453,9 +645,12 @@ function DashboardWizard(_props: DashboardWizardProps) {
           }
         }
 
-        appendLine('Saving to cloud… done ✓');
+        // UX-1: celebration — give the user a moment to read before navigating
+        appendLine('All saved!');
+        appendLine(`✈️ Your ${answers.destination} adventure is ready. Opening your plan now…`);
+        await new Promise<void>((r) => setTimeout(r, 1400));
 
-        // Navigate to Plan Editor with wizard flag
+        // Navigate to Plan Editor with wizard answers for personalized onboarding
         navigate(`/plan/${planId}`, {
           state: {
             fromWizard: true,
@@ -481,10 +676,11 @@ function DashboardWizard(_props: DashboardWizardProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // On vibe step, submitAnswer combines selectedVibes + inputValue internally
+      const val = inputValue.trim();
       if (step === 'vibe') {
-        if (selectedVibes.length > 0) submitAnswer(selectedVibes.join(', '));
+        if (selectedVibes.length > 0 || val) submitAnswer(val);
       } else {
-        const val = inputValue.trim();
         if (val) submitAnswer(val);
       }
     }
@@ -494,17 +690,35 @@ function DashboardWizard(_props: DashboardWizardProps) {
   const renderChips = () => {
     if (isTransitioning || step === 'generating') return null;
 
-    if (step === 'destination') {
+    if (step === 'region') {
       return (
         <div className="wizard-chips">
-          {DESTINATION_CHIPS.map((chip) => (
+          {REGION_CHIPS.map((chip) => (
             <button
-              key={chip}
+              key={chip.key}
               className="wizard-chip"
-              onClick={() => submitAnswer(chip)}
+              onClick={() => submitAnswer(chip.label, chip.key)}
               type="button"
             >
-              {chip}
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    if (step === 'destination') {
+      const subChips = REGION_DESTINATIONS[answers.region] ?? [];
+      return (
+        <div className="wizard-chips">
+          {subChips.map((chip) => (
+            <button
+              key={chip.key}
+              className="wizard-chip"
+              onClick={() => submitAnswer(chip.label, chip.key)}
+              type="button"
+            >
+              {chip.label}
             </button>
           ))}
         </div>
@@ -546,13 +760,13 @@ function DashboardWizard(_props: DashboardWizardProps) {
               </button>
             );
           })}
-          {selectedVibes.length > 0 && (
+          {(selectedVibes.length > 0 || inputValue.trim()) && (
             <button
               className="wizard-chip wizard-chip--confirm"
-              onClick={() => submitAnswer(selectedVibes.join(', '))}
+              onClick={() => submitAnswer(inputValue.trim())}
               type="button"
             >
-              Continue with {selectedVibes.length} selected →
+              Continue{selectedVibes.length > 0 ? ` with ${selectedVibes.length} selected` : ''} →
             </button>
           )}
         </div>
@@ -610,16 +824,20 @@ function DashboardWizard(_props: DashboardWizardProps) {
     return null;
   };
 
-  const showTextInput = step === 'destination' || step === 'duration' || step === 'anchor';
+  // No text input on 'region' (all options are chips) or 'generating'
+  const showTextInput =
+    step === 'destination' || step === 'duration' || step === 'vibe' || step === 'anchor';
   const sendDisabled =
     isTransitioning ||
-    (step === 'vibe' ? selectedVibes.length === 0 : !inputValue.trim());
+    (step === 'vibe'
+      ? selectedVibes.length === 0 && !inputValue.trim()
+      : !inputValue.trim());
 
   return (
     <div className="dashboard-wizard">
       {/* Header */}
       <div className="wizard-header">
-        <span className="wizard-header__title">Trip Planner AI</span>
+        <span className="wizard-header__title">Your travel planner</span>
       </div>
 
       {/* Message thread */}
@@ -631,7 +849,7 @@ function DashboardWizard(_props: DashboardWizardProps) {
           >
             {msg.role === 'bot' && (
               <span className="wizard-message__label" aria-hidden>
-                AI
+                ✦
               </span>
             )}
             <div className={`wizard-bubble wizard-bubble--${msg.role}`}>
@@ -670,7 +888,7 @@ function DashboardWizard(_props: DashboardWizardProps) {
         {generationError && (
           <div className="wizard-message wizard-message--bot">
             <span className="wizard-message__label" aria-hidden>
-              AI
+              ✦
             </span>
             <div className="wizard-bubble wizard-bubble--bot wizard-bubble--error">
               Something went wrong: {generationError}
@@ -706,9 +924,11 @@ function DashboardWizard(_props: DashboardWizardProps) {
             type="text"
             placeholder={
               step === 'destination'
-                ? 'Type a country, region, or "surprise me"…'
+                ? 'Or type a specific country or city…'
                 : step === 'duration'
                 ? 'e.g. "14 days", "October", "2 weeks"…'
+                : step === 'vibe'
+                ? 'Or describe your travel style… (e.g. "mountain biking, craft beer")'
                 : 'Type your must-do, or pick "Nope, all open"…'
             }
             value={inputValue}
@@ -716,7 +936,7 @@ function DashboardWizard(_props: DashboardWizardProps) {
             onKeyDown={handleKeyDown}
             disabled={isTransitioning}
             aria-label="Wizard text input"
-            autoFocus={step === 'destination'}
+            autoFocus
           />
           <Button
             kind="primary"
@@ -725,7 +945,11 @@ function DashboardWizard(_props: DashboardWizardProps) {
             iconDescription="Send"
             onClick={() => {
               const val = inputValue.trim();
-              if (val) submitAnswer(val);
+              if (step === 'vibe') {
+                if (selectedVibes.length > 0 || val) submitAnswer(val);
+              } else if (val) {
+                submitAnswer(val);
+              }
             }}
             disabled={sendDisabled || !inputValue.trim()}
             className="wizard-send-btn"
@@ -733,12 +957,6 @@ function DashboardWizard(_props: DashboardWizardProps) {
         </div>
       )}
 
-      {/* Vibe confirm hint */}
-      {step === 'vibe' && !isTransitioning && selectedVibes.length === 0 && (
-        <div className="wizard-input-wrap">
-          <p className="wizard-hint">Select up to 3 vibes above, then click "Continue"</p>
-        </div>
-      )}
     </div>
   );
 }

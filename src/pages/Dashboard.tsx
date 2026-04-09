@@ -160,11 +160,13 @@ function DashboardGrid({
   plans,
   coverOverrides,
   onPlanClick,
+  emptyMessage,
 }: {
   loading: boolean;
   plans: TripPlan[];
   coverOverrides: Record<string, PlanCoverResult>;
   onPlanClick: (plan: TripPlan) => void;
+  emptyMessage?: string;
 }) {
   if (loading) {
     return (
@@ -173,6 +175,20 @@ function DashboardGrid({
       </div>
     );
   }
+
+  if (plans.length === 0) {
+    return (
+      <div className="dashboard-empty-state">
+        <p className="dashboard-empty-state__title">
+          {emptyMessage ?? 'No trips here yet.'}
+        </p>
+        <p className="dashboard-empty-state__subtitle">
+          Use the planner on the right to build your first itinerary.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-grid">
       {plans.map((plan) => (
@@ -470,6 +486,13 @@ function Dashboard() {
             plans={filteredPlans}
             coverOverrides={coverOverrides}
             onPlanClick={(plan) => navigate(`/plan/${plan.id}`)}
+            emptyMessage={
+              selectedTab === 'upcoming'
+                ? 'No upcoming trips yet.'
+                : selectedTab === 'completed'
+                ? 'No completed trips yet.'
+                : 'No trips yet — start planning your first adventure!'
+            }
           />
 
         </div>

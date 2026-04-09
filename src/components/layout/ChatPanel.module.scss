@@ -207,11 +207,11 @@
   }
 }
 
-// Proactive suggestion chips above the input (B4)
+// Proactive suggestion chips above the input
 .proactiveSuggestions {
   padding: $spacing-03 $spacing-05;
   border-top: 1px solid $border-subtle;
-  background-color: $layer-accent-01;
+  background-color: $layer-01;
   display: flex;
   flex-direction: column;
   gap: $spacing-02;
@@ -219,11 +219,9 @@
 }
 
 .proactiveLabel {
-  font-size: 0.6875rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: $text-secondary;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .proactiveChipRow {

@@ -243,8 +243,12 @@ function ChatPanel({ isCollapsed = false, proactiveSuggestions }: ChatPanelProps
                   className={styles.emptyPromptChip}
                   onClick={async () => {
                     setValue(prompt);
+                    setSubmitError(null);
                     setTimeout(async () => {
-                      try { await submit(); } catch { /* handled below */ }
+                      try { await submit(); } catch (err) {
+                        const message = err instanceof Error ? err.message : 'Failed to send message';
+                        setSubmitError(message);
+                      }
                     }, 50);
                   }}
                   type="button"
@@ -343,10 +347,10 @@ function ChatPanel({ isCollapsed = false, proactiveSuggestions }: ChatPanelProps
         </div>
       )}
 
-      {/* Proactive suggestion chips (B4) */}
+      {/* Proactive suggestion chips */}
       {proactiveSuggestions && proactiveSuggestions.length > 0 && isIdentified && (
         <div className={styles.proactiveSuggestions}>
-          <span className={styles.proactiveLabel}>Suggestion</span>
+          <span className={styles.proactiveLabel}>💡 Suggestion</span>
           {proactiveSuggestions
             .filter((s) => !dismissedSuggestions.has(s))
             .map((suggestion) => (
@@ -402,7 +406,7 @@ function ChatPanel({ isCollapsed = false, proactiveSuggestions }: ChatPanelProps
         </div>
         {isStreaming && (
           <p className={styles.waitHint} aria-live="polite">
-            Poczekaj na zakończenie odpowiedzi, aby wysłać kolejną wiadomość.
+            Wait for the response to finish before sending another message.
           </p>
         )}
       </div>

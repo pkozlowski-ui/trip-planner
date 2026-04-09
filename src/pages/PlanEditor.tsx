@@ -91,11 +91,15 @@ function PlanEditor() {
 
   const onSearchMarkerClear = useCallback(() => setSearchMarker(null), []);
 
-  // Show toast when entering from the Dashboard Wizard
+  // Show personalized toast and auto-open chat when entering from the Dashboard Wizard
   useEffect(() => {
     if (routerLocation.state?.fromWizard) {
       setShowWizardToast(true);
-      const t = setTimeout(() => setShowWizardToast(false), 6000);
+      // Auto-open the AI co-pilot panel so the user can immediately ask questions
+      if ((import.meta.env.VITE_TAMBO_API_KEY ?? '').trim()) {
+        setIsChatOpen(true);
+      }
+      const t = setTimeout(() => setShowWizardToast(false), 7000);
       return () => clearTimeout(t);
     }
   }, [routerLocation.state]);
@@ -1065,16 +1069,24 @@ function PlanEditor() {
             />
           </div>
         )}
-        {showWizardToast && (
-          <div style={{ position: 'absolute', top: '1rem', left: '50%', transform: 'translateX(-50%)', zIndex: 10001, minWidth: '320px', maxWidth: '480px' }}>
-            <InlineNotification
-              kind="success"
-              title="Your skeleton is ready."
-              subtitle="Click any day in the sidebar to start filling it out, or ask the AI co-pilot for suggestions."
-              onClose={() => setShowWizardToast(false)}
-            />
-          </div>
-        )}
+        {showWizardToast && (() => {
+          const wa = routerLocation.state?.wizardAnswers;
+          const destLabel = wa?.destination ? wa.destination : null;
+          const daysLabel = wa?.days ? `${wa.days}-day ` : '';
+          const toastTitle = destLabel
+            ? `Your ${daysLabel}${destLabel} trip is live!`
+            : 'Your trip is ready to explore.';
+          return (
+            <div style={{ position: 'absolute', top: '1rem', left: '50%', transform: 'translateX(-50%)', zIndex: 10001, minWidth: '320px', maxWidth: '520px' }}>
+              <InlineNotification
+                kind="success"
+                title={toastTitle}
+                subtitle="The co-pilot is open on the right — ask it anything about your plan, or start adding spots directly on the map."
+                onClose={() => setShowWizardToast(false)}
+              />
+            </div>
+          );
+        })()}
         {(planId && planId !== 'new' && loading && !currentPlan) ? (
           <div 
             style={{ 
