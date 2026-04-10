@@ -21,14 +21,6 @@ const SCALE: SpacingToken[] = [
   { token: '$spacing-09', rem: '3rem',     px: 48, usage: 'XL padding, empty states' },
 ];
 
-const USAGES = [
-  { context: 'Card padding',      token: '$spacing-04', px: 12, gap: 5,  cssClass: '.location-card__body' },
-  { context: 'Form field gaps',   token: '$spacing-05', px: 16, gap: 5,  cssClass: 'Stack gap={5}' },
-  { context: 'Modal content',     token: '$spacing-06', px: 24, gap: 6,  cssClass: 'Stack gap={6}' },
-  { context: 'Section margin',    token: '$spacing-06', px: 24, gap: 6,  cssClass: 'Dashboard header' },
-  { context: 'Page padding',      token: '$spacing-07', px: 32, gap: 7,  cssClass: 'Dashboard main' },
-];
-
 const STACK_GAPS = [
   { gap: 2, px: 4,  label: 'gap={2}' },
   { gap: 3, px: 8,  label: 'gap={3}' },
@@ -40,7 +32,6 @@ const STACK_GAPS = [
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const MAX_BAR_PX = 48; // reference for 100% width
 const BAR_SCALE  = 5;  // multiplier so bars are visually comfortable
 
 const s = {
